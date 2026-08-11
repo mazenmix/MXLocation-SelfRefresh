@@ -66,21 +66,48 @@ extension Notification.Name {
     static let mxCertificateRefreshFailed = Notification.Name("MXCertificateRefreshFailed")
 }
 
+struct MXCertificateSnapshot {
+    let expirationDate: Date?
+    let lastSuccessfulRefresh: Date?
+    let status: String
+}
+
 enum MXCertificateRenewal {
     private static let lastAttemptKey = "MXCertificateLastAutomaticAttempt"
+    private static let pendingAttemptKey = "MXCertificatePendingAttempt"
+    private static let expirationBeforeAttemptKey = "MXCertificateExpirationBeforeAttempt"
+    private static let lastSuccessfulRefreshKey = "MXCertificateLastSuccessfulRefresh"
+    private static let lastResultKey = "MXCertificateLastResult"
 
     @discardableResult
     static func renewNow() -> Bool {
-        invokeHostSelector("refreshHostCertificate")
-    }
+        let defaults = UserDefaults.standard
+        let now = Date()
 
-    @discardableResult
-    static func openSigningManager() -> Bool {
-        invokeHostSelector("openSigningManager")
+        // Persist the attempt before the host replaces itself. iOS terminates
+        // the running process during a successful self-refresh, so the result
+        // is reconciled against the new provisioning profile on next launch.
+        defaults.set(now, forKey: pendingAttemptKey)
+        defaults.set(now, forKey: lastAttemptKey)
+        defaults.set("Renewing…", forKey: lastResultKey)
+        if let expiration = certificateExpirationDate() {
+            defaults.set(expiration, forKey: expirationBeforeAttemptKey)
+        } else {
+            defaults.removeObject(forKey: expirationBeforeAttemptKey)
+        }
+
+        guard invokeHostSelector("refreshHostCertificate") else {
+            markFailed("Signing engine unavailable")
+            return false
+        }
+        return true
     }
 
     static func refreshAutomaticallyIfDue() {
         let defaults = UserDefaults.standard
+        guard defaults.object(forKey: lastSuccessfulRefreshKey) as? Date != nil else { return }
+        guard defaults.object(forKey: pendingAttemptKey) as? Date == nil else { return }
+        guard LocalDevVPN.isConnected else { return }
         let lastAttempt = defaults.object(forKey: lastAttemptKey) as? Date ?? .distantPast
         guard Date().timeIntervalSince(lastAttempt) >= 24 * 60 * 60 else { return }
 
@@ -90,6 +117,109 @@ enum MXCertificateRenewal {
                 defaults.set(Date(), forKey: lastAttemptKey)
             }
         }
+    }
+
+    static func snapshot() -> MXCertificateSnapshot {
+        reconcilePendingRefresh()
+        let defaults = UserDefaults.standard
+        return MXCertificateSnapshot(
+            expirationDate: certificateExpirationDate(),
+            lastSuccessfulRefresh: defaults.object(forKey: lastSuccessfulRefreshKey) as? Date,
+            status: defaults.string(forKey: lastResultKey) ?? "Not refreshed yet"
+        )
+    }
+
+    static func remainingText(until expiration: Date?, now: Date = Date()) -> String {
+        guard let expiration else { return "Unavailable" }
+        let remaining = expiration.timeIntervalSince(now)
+        guard remaining > 0 else { return "Expired" }
+        let totalHours = Int(remaining / 3600)
+        return "\(totalHours / 24) days, \(totalHours % 24) hours"
+    }
+
+    static func dateText(_ date: Date?) -> String {
+        guard let date else { return "Unavailable" }
+        return certificateDateFormatter.string(from: date)
+    }
+
+    static func markSucceeded() {
+        let defaults = UserDefaults.standard
+        let successfulAttempt = defaults.object(forKey: pendingAttemptKey) as? Date ?? Date()
+        defaults.set(successfulAttempt, forKey: lastSuccessfulRefreshKey)
+        defaults.set("Succeeded", forKey: lastResultKey)
+        clearPendingAttempt(defaults)
+    }
+
+    static func markFailed(_ message: String) {
+        let defaults = UserDefaults.standard
+        defaults.set("Failed: \(message)", forKey: lastResultKey)
+        clearPendingAttempt(defaults)
+    }
+
+    private static var certificateDateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }
+
+    private static func reconcilePendingRefresh() {
+        let defaults = UserDefaults.standard
+        guard let attempt = defaults.object(forKey: pendingAttemptKey) as? Date else { return }
+
+        let previousExpiration = defaults.object(forKey: expirationBeforeAttemptKey) as? Date
+        let currentExpiration = certificateExpirationDate()
+        if let currentExpiration {
+            if let previousExpiration {
+                if currentExpiration.timeIntervalSince(previousExpiration) > 1 {
+                    markSucceeded()
+                    return
+                }
+            } else {
+                markSucceeded()
+                return
+            }
+        }
+
+        // If the app is running again and its profile did not advance, the
+        // replacement did not complete. Keep a short grace period for an
+        // in-flight refresh that has not terminated the process yet.
+        if Date().timeIntervalSince(attempt) > 5 {
+            markFailed("Certificate expiry did not change")
+        }
+    }
+
+    private static func clearPendingAttempt(_ defaults: UserDefaults) {
+        defaults.removeObject(forKey: pendingAttemptKey)
+        defaults.removeObject(forKey: expirationBeforeAttemptKey)
+    }
+
+    private static func certificateExpirationDate() -> Date? {
+        var directory = Bundle.main.bundleURL.standardizedFileURL
+        for _ in 0..<5 {
+            let profileURL = directory.appendingPathComponent("embedded.mobileprovision")
+            if let data = try? Data(contentsOf: profileURL),
+               let expiration = expirationDate(fromProvisioningProfile: data) {
+                return expiration
+            }
+            directory.deleteLastPathComponent()
+        }
+        return nil
+    }
+
+    private static func expirationDate(fromProvisioningProfile data: Data) -> Date? {
+        let xmlStart = Data("<?xml".utf8)
+        let plistEnd = Data("</plist>".utf8)
+        guard let startRange = data.range(of: xmlStart),
+              let endRange = data.range(of: plistEnd, options: [], in: startRange.lowerBound..<data.endIndex)
+        else { return nil }
+
+        let plistData = data.subdata(in: startRange.lowerBound..<endRange.upperBound)
+        guard let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil),
+              let dictionary = plist as? [String: Any]
+        else { return nil }
+        return dictionary["ExpirationDate"] as? Date
     }
 
     private static func invokeHostSelector(_ selectorName: String) -> Bool {
@@ -119,19 +249,57 @@ if state_needle not in settings_text:
 settings_text = settings_text.replace(
     state_needle,
     state_needle
-    + '    @State private var certificateStatus = "Ready"\n'
+    + '    @State private var certificateExpiration: Date?\n'
+    + '    @State private var certificateLastSuccess: Date?\n'
+    + '    @State private var certificateStatus = "Not refreshed yet"\n'
     + "    @State private var certificateRefreshRunning = false\n",
 )
 
 section_needle = '                Section("Privacy") {\n'
 certificate_section = '''                Section {
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        LabeledContent(
+                            "Time remaining",
+                            value: MXCertificateRenewal.remainingText(
+                                until: certificateExpiration,
+                                now: context.date
+                            )
+                        )
+                    }
+
+                    LabeledContent(
+                        "Expires",
+                        value: MXCertificateRenewal.dateText(certificateExpiration)
+                    )
+
+                    LabeledContent(
+                        "Last successful renewal",
+                        value: MXCertificateRenewal.dateText(certificateLastSuccess)
+                    )
+
+                    LabeledContent("Refresh status") {
+                        Text(certificateStatus)
+                            .foregroundStyle(
+                                certificateStatus.hasPrefix("Succeeded")
+                                    ? LocusTheme.statusGood
+                                    : certificateStatus.hasPrefix("Failed")
+                                        ? LocusTheme.statusBad
+                                        : LocusTheme.statusWarn
+                            )
+                    }
+
                     Button {
+                        guard LocalDevVPN.isConnected else {
+                            MXCertificateRenewal.markFailed("Connect LocalDevVPN first")
+                            reloadCertificateInfo()
+                            return
+                        }
                         certificateRefreshRunning = true
-                        certificateStatus = "Starting refresh…"
+                        certificateStatus = "Renewing…"
                         if !MXCertificateRenewal.renewNow() {
                             certificateRefreshRunning = false
-                            certificateStatus = "Built-in signing engine unavailable"
                         }
+                        reloadCertificateInfo()
                     } label: {
                         Label(
                             certificateRefreshRunning ? "Renewing Certificate…" : "Renew Certificate Now",
@@ -139,20 +307,10 @@ certificate_section = '''                Section {
                         )
                     }
                     .disabled(certificateRefreshRunning)
-
-                    Button {
-                        if !MXCertificateRenewal.openSigningManager() {
-                            certificateStatus = "Built-in signing manager unavailable"
-                        }
-                    } label: {
-                        Label("Open Signing Manager", systemImage: "person.badge.key.fill")
-                    }
-
-                    LabeledContent("Refresh status", value: certificateStatus)
                 } header: {
                     Text("Certificate")
                 } footer: {
-                    Text("Connect LocalDevVPN before renewing. The signing engine is built into MX Location; a separate SideStore app is not required after setup.")
+                    Text("Connect LocalDevVPN before renewing. A successful self-refresh closes MX Location while iOS replaces it; reopen the app to see the updated certificate time.")
                 }
 
 '''
@@ -166,6 +324,7 @@ receiver_needle = '''            .onAppear {
 '''
 receiver_replacement = '''            .onAppear {
                 localDevVPNInstalled = LocalDevVPN.isInstalled
+                reloadCertificateInfo()
             }
             .onReceive(NotificationCenter.default.publisher(for: .mxCertificateRefreshStarted)) { _ in
                 certificateRefreshRunning = true
@@ -173,19 +332,112 @@ receiver_replacement = '''            .onAppear {
             }
             .onReceive(NotificationCenter.default.publisher(for: .mxCertificateRefreshSucceeded)) { _ in
                 certificateRefreshRunning = false
-                certificateStatus = "Renewed successfully"
+                MXCertificateRenewal.markSucceeded()
+                reloadCertificateInfo()
             }
             .onReceive(NotificationCenter.default.publisher(for: .mxCertificateRefreshFailed)) { notification in
                 certificateRefreshRunning = false
-                certificateStatus = notification.userInfo?["error"] as? String ?? "Refresh failed"
+                MXCertificateRenewal.markFailed(
+                    notification.userInfo?["error"] as? String ?? "Unknown refresh error"
+                )
+                reloadCertificateInfo()
             }
 '''
 if receiver_needle not in settings_text:
     raise RuntimeError("Unable to locate MX Location Settings receiver insertion point")
 settings.write_text(settings_text.replace(receiver_needle, receiver_replacement), encoding="utf-8")
 
+# Remove the upstream About/easter-egg copy and keep only the requested product identity.
+settings_text = settings.read_text(encoding="utf-8")
+settings_text = settings_text.replace("    @State private var showNameEasterEgg = false\n", "")
+settings_text = settings_text.replace(
+    '''    private var appVersion: String {
+        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        return build.isEmpty ? short : "\\(short) (\\(build))"
+    }
+
+''',
+    "",
+)
+about_needle = '''                Section("About") {
+                    LabeledContent("Version", value: appVersion)
+                    LabeledContent("Engine", value: "idevice DVT location simulation")
+                    Text("MX Location is free and open source (MIT). Location injection uses the MIT-licensed idevice FFI.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    Button {
+                        showNameEasterEgg = true
+                    } label: {
+                        Text("locus, n. — a place. From the Latin for where you are.")
+                            .font(.footnote.italic())
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+'''
+about_replacement = '''                Section("About") {
+                    Text("MazenmiX (Mazen Mozh) Products")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+'''
+if about_needle not in settings_text:
+    raise RuntimeError("Unable to replace MX Location About section")
+settings_text = settings_text.replace(about_needle, about_replacement)
+settings_text = settings_text.replace(
+    '''            .fullScreenCover(isPresented: $showNameEasterEgg) {
+                LocusEasterEggView()
+            }
+''',
+    "",
+)
+
+# Keep certificate fields synchronized when returning from the system or VPN.
+settings_end_needle = '''            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    localDevVPNInstalled = LocalDevVPN.isInstalled
+                }
+            }
+        }
+    }
+}
+'''
+settings_end_replacement = '''            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    localDevVPNInstalled = LocalDevVPN.isInstalled
+                    reloadCertificateInfo()
+                }
+            }
+        }
+    }
+
+    private func reloadCertificateInfo() {
+        let snapshot = MXCertificateRenewal.snapshot()
+        certificateExpiration = snapshot.expirationDate
+        certificateLastSuccess = snapshot.lastSuccessfulRefresh
+        certificateStatus = snapshot.status
+        certificateRefreshRunning = snapshot.status == "Renewing…"
+    }
+}
+'''
+if settings_end_needle not in settings_text:
+    raise RuntimeError("Unable to add certificate snapshot reload helper")
+settings.write_text(settings_text.replace(settings_end_needle, settings_end_replacement), encoding="utf-8")
+
 root_view = root / "Locus/Features/Map/RootView.swift"
 root_text = root_view.read_text(encoding="utf-8")
+if 'Text("Teleport")' not in root_text:
+    raise RuntimeError("Unable to locate Teleport button label")
+root_text = root_text.replace('Text("Teleport")', 'Text("Change")', 1)
 root_needle = '''        .alert("MX Location", isPresented: Binding(
 '''
 if root_needle not in root_text:

@@ -9,9 +9,10 @@ Location Settings.
 
 - Keeps the Locus/MX Location iOS 27 location-simulation engine.
 - Bundles LiveContainer + SideStore into the same installed app.
-- Opens MX Location automatically after certificate import is complete.
+- Opens MX Location directly as the normal app interface.
 - Adds **Renew Certificate Now** to MX Location Settings.
-- Adds **Open Signing Manager** for Apple Account, pairing, and repair tasks.
+- Shows the real certificate time remaining, expiration date, last successful
+  renewal, and refresh result directly in MX Location Settings.
 - Attempts a refresh on app launch when at least 24 hours have passed since the
   last attempt.
 - Keeps the system **Refresh All Apps** App Intent supplied by SideStore, so an
@@ -54,7 +55,8 @@ cannot remove the VPN/pairing requirements SideStore itself uses.
 5. Reopen MX Location. The map opens directly from then on.
 
 In MX Location Settings, use **Renew Certificate Now** while LocalDevVPN is
-connected. If the refresh engine needs attention, use **Open Signing Manager**.
+connected. A successful self-refresh closes the running app while iOS replaces
+it; reopen MX Location to see the updated certificate details.
 
 ## Security
 
