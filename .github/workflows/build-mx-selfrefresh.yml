@@ -1,0 +1,111 @@
+name: Build MX Location Self Refresh IPA
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.2"
+
+      - name: Checkout pinned sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --recursive https://github.com/LiveContainer/LiveContainer.git LiveContainer-src
+          git -C LiveContainer-src checkout fe4c0ea7607322f7a2c7aa3111d7082054b14c8b
+          git -C LiveContainer-src submodule update --init --recursive
+
+          git clone https://github.com/ChrisMack32/Locus.git Locus-src
+          git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
+
+      - name: Apply MX Location integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_locus.py Locus-src
+          python3 scripts/patch_livecontainer.py LiveContainer-src
+          cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          cp assets/MXAppIcon1024.png LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon1024.png
+          cp assets/MXAppIcon1024.png "LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIconDark1024.png"
+          cp assets/MXAppIcon1024.png "LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIconDark1024 1.png"
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen ldid
+          curl -fL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
+          chmod +x dylibify
+
+      - name: Build MX Location guest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Locus-src
+          xcodegen generate
+          xcodebuild \
+            -project Locus.xcodeproj \
+            -scheme Locus \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM='' \
+            build | tee xcodebuild-locus.log
+
+      - name: Build host archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd LiveContainer-src
+          xcodebuild archive \
+            -archivePath archive \
+            -scheme LiveContainer \
+            -project LiveContainer.xcodeproj \
+            -sdk iphoneos \
+            -arch arm64 \
+            -configuration Release | tee xcodebuild-host.log
+
+      - name: Package integrated IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/package_integrated.sh \
+            LiveContainer-src \
+            Locus-src \
+            "$PWD/dylibify" \
+            "$PWD/MX-Location-Self-Refresh-unsigned.ipa"
+          shasum -a 256 MX-Location-Self-Refresh-unsigned.ipa > MX-Location-Self-Refresh-unsigned.ipa.sha256
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MX-Location-Self-Refresh
+          path: |
+            MX-Location-Self-Refresh-unsigned.ipa
+            MX-Location-Self-Refresh-unsigned.ipa.sha256
+            Locus-src/xcodebuild-locus.log
+            LiveContainer-src/xcodebuild-host.log
+          if-no-files-found: error
