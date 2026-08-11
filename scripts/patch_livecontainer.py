@@ -21,6 +21,10 @@ replacements = [
         "bool isSideStore = false;\nbool isBuiltInMXLocation = false;\nbool sideStoreExist = false;\nbool mxLocationExist = false;",
     ),
     (
+        "    if (!LCSharedUtils.certificatePassword && !isSideStore) {",
+        "    if (!LCSharedUtils.certificatePassword && !isSideStore && !isBuiltInMXLocation) {",
+    ),
+    (
         '''    NSString *bundlePath = 0;
     if(!isSideStore) {
         bundlePath = [NSString stringWithFormat:@"%@/Applications/%@", docPath, selectedApp];
@@ -60,11 +64,16 @@ replacements = [
 
     if([selectedApp isEqualToString:@"builtinMXLocation"]) {
         isBuiltInMXLocation = mxLocationExist;
-    } else if(!selectedApp && mxLocationExist && LCSharedUtils.certificatePassword && ![lcUserDefaults boolForKey:@"LCOpenSideStore"]) {
-        // Once JIT-less certificate import is complete, MX Location becomes the
-        // default UI. The signing manager remains available through the bridge.
+        if(isBuiltInMXLocation) {
+            [lcUserDefaults removeObjectForKey:@"error"];
+        }
+    } else if(!selectedApp && mxLocationExist && ![lcUserDefaults boolForKey:@"LCOpenSideStore"]) {
+        // MX Location is always the visible app. The integrated signing manager
+        // is opened only when the user asks for it from MX Location settings.
         selectedApp = @"builtinMXLocation";
         isBuiltInMXLocation = true;
+        [lcUserDefaults removeObjectForKey:@"error"];
+        NSLog(@"[MX Location] launching the map as the default UI");
     }
 ''',
     ),
