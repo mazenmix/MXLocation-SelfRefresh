@@ -59,6 +59,158 @@ replace_required(
 )
 
 
+# The embedded manager can receive two near-simultaneous foreground starts
+# while LiveContainer switches from the map guest to SideStore. Core Data must
+# coalesce those requests instead of asking one coordinator to add AltStore.sqlite
+# twice (NSCocoaErrorDomain 134081: "Can't add the same store twice").
+persistent_container = root / "AltStoreCore/Roxas/RSTPersistentContainer.swift"
+replace_required(
+    persistent_container,
+    '''    private let parentBackgroundContexts = NSHashTable<NSManagedObjectContext>.weakObjects()
+    private let pendingSaveParentBackgroundContexts = NSHashTable<NSManagedObjectContext>.weakObjects()
+''',
+    '''    private let parentBackgroundContexts = NSHashTable<NSManagedObjectContext>.weakObjects()
+    private let pendingSaveParentBackgroundContexts = NSHashTable<NSManagedObjectContext>.weakObjects()
+
+    private let persistentStoreLoadLock = NSLock()
+    private var isLoadingPersistentStores = false
+    private var persistentStoreLoadWaiters = [(NSPersistentStoreDescription, Error?) -> Void]()
+''',
+)
+
+replace_required(
+    persistent_container,
+    '''    open override func loadPersistentStores(completionHandler: @escaping (NSPersistentStoreDescription, Error?) -> Void) {
+        let dispatchGroup = DispatchGroup()
+''',
+    '''    open override func loadPersistentStores(completionHandler: @escaping (NSPersistentStoreDescription, Error?) -> Void) {
+        persistentStoreLoadLock.lock()
+
+        if let existingStore = persistentStoreCoordinator.persistentStores.first,
+           let existingURL = existingStore.url?.standardizedFileURL,
+           let existingDescription = persistentStoreDescriptions.first(where: {
+               $0.url?.standardizedFileURL == existingURL
+           }) {
+            persistentStoreLoadLock.unlock()
+            configure(viewContext, parent: nil)
+            completionHandler(existingDescription, nil)
+            return
+        }
+
+        persistentStoreLoadWaiters.append(completionHandler)
+        guard !isLoadingPersistentStores else {
+            persistentStoreLoadLock.unlock()
+            return
+        }
+        isLoadingPersistentStores = true
+        persistentStoreLoadLock.unlock()
+
+        let dispatchGroup = DispatchGroup()
+''',
+)
+
+replace_required(
+    persistent_container,
+    '''        let finish: (NSPersistentStoreDescription, Error?) -> Void = { [weak self] description, error in
+            guard let self = self else { return }
+            self.configure(self.viewContext, parent: nil)
+            completionHandler(description, error)
+        }
+''',
+    '''        let finish: (NSPersistentStoreDescription, Error?) -> Void = { [weak self] description, error in
+            guard let self = self else { return }
+            self.configure(self.viewContext, parent: nil)
+
+            self.persistentStoreLoadLock.lock()
+            self.isLoadingPersistentStores = false
+            let waiters = self.persistentStoreLoadWaiters
+            self.persistentStoreLoadWaiters.removeAll()
+            self.persistentStoreLoadLock.unlock()
+
+            waiters.forEach { $0(description, error) }
+        }
+''',
+)
+
+
+# A free Apple developer team is allowed one active development certificate.
+# If Apple's first certificate listing is stale/empty, requesting a new one can
+# return tooManyCertificates. Refresh the portal list, present the normal revoke
+# chooser, and retry exactly once after the user's explicit selection.
+replace_required(
+    authentication,
+    '''    private func requestCertificate(for team: ALTTeam, session: ALTAppleAPISession) async throws -> ALTCertificate {
+''',
+    '''    private func requestCertificate(for team: ALTTeam, session: ALTAppleAPISession, allowLimitRecovery: Bool = true) async throws -> ALTCertificate {
+''',
+)
+replace_required(
+    authentication,
+    '''    private func replaceCertificate(portalCertificates: [ALTX509Certificate], for team: ALTTeam, session: ALTAppleAPISession) async throws -> ALTCertificate {
+''',
+    '''    private func replaceCertificate(portalCertificates: [ALTX509Certificate], for team: ALTTeam, session: ALTAppleAPISession, allowLimitRecovery: Bool = true) async throws -> ALTCertificate {
+''',
+)
+replace_required(
+    authentication,
+    '''            return try await self.requestCertificate(for: team, session: session)
+        }
+        
+        self.debugLog("[Authentication] replaceCertificate: Presenting revoke alert for \\(replaceableCertificates.count) development cert(s)...")
+''',
+    '''            return try await self.requestCertificate(for: team, session: session, allowLimitRecovery: allowLimitRecovery)
+        }
+        
+        self.debugLog("[Authentication] replaceCertificate: Presenting revoke alert for \\(replaceableCertificates.count) development cert(s)...")
+''',
+)
+replace_required(
+    authentication,
+    '''                self.verboseLog("[Authentication] replaceCertificate: Keeping existing, calling requestCertificate...")
+                return try await self.requestCertificate(for: team, session: session)
+''',
+    '''                self.verboseLog("[Authentication] replaceCertificate: Keeping existing, calling requestCertificate...")
+                return try await self.requestCertificate(for: team, session: session, allowLimitRecovery: allowLimitRecovery)
+''',
+)
+replace_required(
+    authentication,
+    '''                    self.debugLog("[Authentication] replaceCertificate: Selected certificates successfully revoked. Requesting new certificate...")
+                    return try await self.requestCertificate(for: team, session: session)
+''',
+    '''                    self.debugLog("[Authentication] replaceCertificate: Selected certificates successfully revoked. Requesting new certificate...")
+                    return try await self.requestCertificate(for: team, session: session, allowLimitRecovery: allowLimitRecovery)
+''',
+)
+replace_required(
+    authentication,
+    '''            if underlying.domain == ALTAppleAPIErrorDomain && 
+               underlying.code == ALTAppleAPIError.tooManyCertificates.rawValue 
+            {
+                let friendlyError: AuthenticationError = (team.type == .free) 
+''',
+    '''            if underlying.domain == ALTAppleAPIErrorDomain &&
+               underlying.code == ALTAppleAPIError.tooManyCertificates.rawValue
+            {
+                if team.type == .free && allowLimitRecovery {
+                    let latestPortalCertificates = try await AuthManager.shared.fetchCertificates(for: team, session: session)
+                    self.context.portalCertificates = latestPortalCertificates
+                    if !latestPortalCertificates.isEmpty {
+                        self.debugLog("[Authentication] Certificate limit reached with a stale/empty portal list. Offering one-time replacement recovery.")
+                        return try await self.replaceCertificate(
+                            portalCertificates: latestPortalCertificates,
+                            for: team,
+                            session: session,
+                            allowLimitRecovery: false
+                        )
+                    }
+                }
+
+                let friendlyError: AuthenticationError = (team.type == .free) 
+''',
+)
+
+
 # In the embedded manager, the named SideStore accent can resolve against the
 # host app's resource environment. The authentication error toast then becomes
 # white text on a white card. Use an explicit, high-contrast color so the real
