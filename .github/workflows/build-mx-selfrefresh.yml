@@ -16,7 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout builder
@@ -38,12 +38,17 @@ jobs:
           git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
+          git clone --recursive https://github.com/LiveContainer/SideStore.git SideStore-src
+          git -C SideStore-src checkout d0454aeecb77d5ecc477855604101904967f8a25
+          git -C SideStore-src submodule update --init --recursive
+
       - name: Apply MX Location integration
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/patch_locus.py Locus-src
           python3 scripts/patch_livecontainer.py LiveContainer-src
+          python3 scripts/patch_sidestore.py SideStore-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           cp assets/MXAppIcon1024.png LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon1024.png
           cp assets/MXAppIcon1024.png "LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIconDark1024.png"
@@ -53,7 +58,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          brew install xcodegen ldid
+          brew install xcodegen ldid xcbeautify
           curl -fL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
           chmod +x dylibify
 
@@ -88,6 +93,19 @@ jobs:
             -arch arm64 \
             -configuration Release | tee xcodebuild-host.log
 
+      - name: Build patched renewal engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd SideStore-src
+          mkdir -p build/logs
+          set -o pipefail
+          NSUnbufferedIO=YES make -B build \
+            2>&1 | tee xcodebuild-sidestore.log | xcbeautify --renderer github-actions
+          make fakesign | tee -a xcodebuild-sidestore.log
+          make ipa | tee -a xcodebuild-sidestore.log
+          test -f SideStore.ipa
+
       - name: Package integrated IPA
         shell: bash
         run: |
@@ -95,17 +113,19 @@ jobs:
           bash scripts/package_integrated.sh \
             LiveContainer-src \
             Locus-src \
+            "$PWD/SideStore-src/SideStore.ipa" \
             "$PWD/dylibify" \
-            "$PWD/MX-Location-Self-Refresh-unsigned.ipa"
-          shasum -a 256 MX-Location-Self-Refresh-unsigned.ipa > MX-Location-Self-Refresh-unsigned.ipa.sha256
+            "$PWD/MX-Location-Self-Refresh-v1.0.7-unsigned.ipa"
+          shasum -a 256 MX-Location-Self-Refresh-v1.0.7-unsigned.ipa > MX-Location-Self-Refresh-v1.0.7-unsigned.ipa.sha256
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: MX-Location-Self-Refresh
           path: |
-            MX-Location-Self-Refresh-unsigned.ipa
-            MX-Location-Self-Refresh-unsigned.ipa.sha256
+            MX-Location-Self-Refresh-v1.0.7-unsigned.ipa
+            MX-Location-Self-Refresh-v1.0.7-unsigned.ipa.sha256
             Locus-src/xcodebuild-locus.log
             LiveContainer-src/xcodebuild-host.log
+            SideStore-src/xcodebuild-sidestore.log
           if-no-files-found: error
