@@ -13,6 +13,9 @@ Location Settings.
 - Adds **Renew Certificate Now** to MX Location Settings.
 - Shows the real certificate time remaining, expiration date, last successful
   renewal, and refresh result directly in MX Location Settings.
+- Shows whether the bundled renewal engine is ready and what one-time setup is
+  missing instead of leaving **Renewing...** stuck indefinitely.
+- Stops a stalled renewal after four minutes with a useful error.
 - Attempts a refresh on app launch when at least 24 hours have passed since the
   last attempt.
 - Keeps the system **Refresh All Apps** App Intent supplied by SideStore, so an
@@ -46,18 +49,25 @@ cannot remove the VPN/pairing requirements SideStore itself uses.
 
 ## First-time setup
 
-1. Open the installed MX Location app. The signing setup interface appears
-   until a certificate has been imported.
-2. Open the built-in SideStore, sign in on-device, and add/verify its pairing
-   file.
-3. Connect LocalDevVPN and refresh the app once.
-4. Return to Settings and choose **Import Certificate from SideStore**.
-5. Reopen MX Location. The map opens directly from then on.
+An IPA installed directly by Sideloadly is not automatically registered in the
+bundled renewal engine. Complete these steps once:
+
+1. Download the same MX Location IPA to the iPhone Files app.
+2. Open MX Location > Settings > **Set Up Renewal Engine**. This switches to the
+   signing engine bundled inside the same MX Location app; it does not require a
+   separately installed SideStore app.
+3. Sign in with the Apple Account used for free/paid developer signing and
+   select a valid pairing file.
+4. Tap **+** in the bundled engine and install the same MX Location IPA from
+   Files once. iOS may close the app while it replaces the Sideloadly-installed
+   copy.
+5. Reopen MX Location. In Settings, **Renewal engine** should show **Ready**.
 
 In MX Location Settings, use **Renew Certificate Now** while LocalDevVPN is
-connected. Renewal can take several minutes, so keep MX Location open while it
-shows **Renewing…**. A successful self-refresh may close the running app while
-iOS replaces it; reopen MX Location to see the updated certificate details.
+connected. A normal renewal is usually much shorter than four minutes. A
+successful self-refresh may close the running app while iOS replaces it; reopen
+MX Location to see the updated certificate details. If the attempt reaches four
+minutes, the app reports a timeout instead of remaining stuck.
 
 ## Security
 

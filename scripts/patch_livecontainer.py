@@ -102,8 +102,23 @@ if hook_needle not in hooks_text:
     raise RuntimeError("Unable to add integrated signing-manager bridge")
 hooks.write_text(hooks_text.replace(hook_needle, hook_function + hook_needle), encoding="utf-8")
 
+# Make it explicit in the bundled manager UI that this is an MX Location
+# component, not a separately installed SideStore application.
+hooks_text = hooks.read_text(encoding="utf-8")
+hooks_text = hooks_text.replace(
+    'versionLabel.text = [NSString stringWithFormat:@"LC %@, SS %@", LCVersion, SSVersion];',
+    'versionLabel.text = @"MX Renewal Engine — built into MX Location";',
+)
+hooks.write_text(hooks_text, encoding="utf-8")
+
 bridging = root / "SideStoreSupport/SideStore-Bridging-Header.h"
 bridge_text = bridging.read_text(encoding="utf-8")
+bridge_include = '#include "../LiveContainer/LCSharedUtils.h"\n#include <sqlite3.h>\n'
+if '#include "../LiveContainer/LCSharedUtils.h"' not in bridge_text:
+    bridge_text = bridge_text.replace(
+        '#include "../LiveContainer/utils.h"\n',
+        '#include "../LiveContainer/utils.h"\n' + bridge_include,
+    )
 declaration = "\nvoid MXOpenSigningManager(void);\n"
 if declaration.strip() not in bridge_text:
     bridge_text = bridge_text.replace(
@@ -117,15 +132,90 @@ bridging.write_text(bridge_text, encoding="utf-8")
 # host to renew while MX Location is the foreground guest.
 side_store_swift = root / "SideStoreSupport/SideStore.swift"
 swift_text = side_store_swift.read_text(encoding="utf-8")
+if "import SQLite3" not in swift_text:
+    swift_text = swift_text.replace("import Foundation\n", "import Foundation\nimport SQLite3\n", 1)
+
+timeout_needle = '''    func updateProgress(_ value: Double) {
+'''
+timeout_method = '''    func abortRefresh(_ message: String) {
+        let error = NSError(
+            domain: "MXCertificateBridge",
+            code: 408,
+            userInfo: [NSLocalizedDescriptionKey: message]
+        )
+
+        if let continuation = c {
+            continuation.resume(throwing: error)
+            c = nil
+        }
+        if let continuation = launchContinuation {
+            continuation.resume(throwing: error)
+            launchContinuation = nil
+        }
+
+        ext?._kill(9)
+        ext = nil
+        client = nil
+        sideStorePid = 0
+    }
+
+    func updateProgress(_ value: Double) {
+'''
+if "func abortRefresh(_ message: String)" not in swift_text:
+    if timeout_needle not in swift_text:
+        raise RuntimeError("Unable to add a bounded refresh timeout")
+    swift_text = swift_text.replace(timeout_needle, timeout_method)
+
 swift_bridge = r'''
+
+private struct MXManagedCertificateRecord {
+    let expirationDate: Date
+    let refreshedDate: Date?
+}
 
 @objc(MXCertificateBridge)
 public final class MXCertificateBridge: NSObject {
+    private static let managedExpirationKey = "MXRenewalManagedExpiration"
+    private static let engineReadyKey = "MXRenewalEngineReady"
+    private static let engineStatusKey = "MXRenewalEngineStatus"
+    private static let pendingAttemptKey = "MXCertificatePendingAttempt"
+    private static let pendingProcessKey = "MXCertificatePendingProcess"
+    private static let expirationBeforeAttemptKey = "MXCertificateExpirationBeforeAttempt"
+    private static let lastSuccessfulRefreshKey = "MXCertificateLastSuccessfulRefresh"
+    private static let lastResultKey = "MXCertificateLastResult"
+    private static let maximumRefreshDuration: TimeInterval = 4 * 60
+
+    @objc(refreshRenewalMetadata)
+    public static func refreshRenewalMetadata() {
+        _ = updateRenewalMetadata()
+    }
+
     @objc(refreshHostCertificate)
     public static func refreshHostCertificate() {
+        let metadata = updateRenewalMetadata()
+        guard metadata.ready else {
+            finishFailure(metadata.status)
+            NotificationCenter.default.post(
+                name: Notification.Name("MXCertificateRefreshFailed"),
+                object: nil,
+                userInfo: ["error": metadata.status]
+            )
+            return
+        }
+
         NotificationCenter.default.post(name: Notification.Name("MXCertificateRefreshStarted"), object: nil)
 
         Task {
+            let timeout = DispatchWorkItem {
+                if #available(iOS 17.0, *) {
+                    RefreshHandler.shared.abortRefresh(
+                        "Renewal timed out after 4 minutes. Check LocalDevVPN and the pairing file."
+                    )
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + maximumRefreshDuration, execute: timeout)
+            defer { timeout.cancel() }
+
             do {
                 guard #available(iOS 17.0, *) else {
                     throw NSError(
@@ -142,10 +232,25 @@ public final class MXCertificateBridge: NSObject {
                     intentProgress: refreshProgress
                 )
 
+                let refreshedMetadata = updateRenewalMetadata()
+                let defaults = UserDefaults.standard
+                let previousExpiration = defaults.object(forKey: expirationBeforeAttemptKey) as? Date
+                guard let currentExpiration = refreshedMetadata.expirationDate,
+                      previousExpiration == nil || currentExpiration.timeIntervalSince(previousExpiration!) > 1
+                else {
+                    throw NSError(
+                        domain: "MXCertificateBridge",
+                        code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "Certificate expiry did not change. Complete Renewal Engine Setup first."]
+                    )
+                }
+
+                finishSuccess(refreshedDate: refreshedMetadata.refreshedDate)
                 await MainActor.run {
                     NotificationCenter.default.post(name: Notification.Name("MXCertificateRefreshSucceeded"), object: nil)
                 }
             } catch {
+                finishFailure(error.localizedDescription)
                 await MainActor.run {
                     NotificationCenter.default.post(
                         name: Notification.Name("MXCertificateRefreshFailed"),
@@ -161,10 +266,156 @@ public final class MXCertificateBridge: NSObject {
     public static func openSigningManager() {
         MXOpenSigningManager()
     }
+
+    private struct RenewalMetadata {
+        let ready: Bool
+        let status: String
+        let expirationDate: Date?
+        let refreshedDate: Date?
+    }
+
+    private static func updateRenewalMetadata() -> RenewalMetadata {
+        let defaults = UserDefaults.standard
+        let record = managedCertificateRecord()
+        let hasPairingFile = pairingFileExists()
+
+        var missing = [String]()
+        if !hasPairingFile {
+            missing.append("pairing file")
+        }
+        if record == nil {
+            missing.append("sign in and install this MX IPA once")
+        }
+
+        let ready = missing.isEmpty
+        let status = ready ? "Ready" : "Setup required: " + missing.joined(separator: ", ")
+        defaults.set(ready, forKey: engineReadyKey)
+        defaults.set(status, forKey: engineStatusKey)
+
+        if let record {
+            defaults.set(record.expirationDate, forKey: managedExpirationKey)
+            if let refreshedDate = record.refreshedDate,
+               defaults.object(forKey: lastSuccessfulRefreshKey) as? Date == nil {
+                defaults.set(refreshedDate, forKey: lastSuccessfulRefreshKey)
+            }
+        } else {
+            defaults.removeObject(forKey: managedExpirationKey)
+        }
+
+        return RenewalMetadata(
+            ready: ready,
+            status: status,
+            expirationDate: record?.expirationDate,
+            refreshedDate: record?.refreshedDate
+        )
+    }
+
+    private static func pairingFileExists() -> Bool {
+        guard let lcHome = getenv("LC_HOME_PATH") else { return false }
+        let sideStoreHome = URL(fileURLWithPath: String(cString: lcHome))
+            .appendingPathComponent("Documents/SideStore", isDirectory: true)
+        guard let enumerator = FileManager.default.enumerator(
+            at: sideStoreHome,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return false }
+
+        for case let fileURL as URL in enumerator {
+            if fileURL.lastPathComponent == "ALTPairingFile.mobiledevicepairing" {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func managedCertificateRecord() -> MXManagedCertificateRecord? {
+        guard let appGroupIdentifier = LCSharedUtils.appGroupID(),
+              let groupURL = FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: appGroupIdentifier
+              )
+        else { return nil }
+
+        let databaseDirectory = groupURL.appendingPathComponent("Database", isDirectory: true)
+        guard let enumerator = FileManager.default.enumerator(
+            at: databaseDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+
+        var newest: MXManagedCertificateRecord?
+        for case let databaseURL as URL in enumerator {
+            guard databaseURL.pathExtension == "sqlite" else { continue }
+            if let record = readManagedCertificate(from: databaseURL),
+               newest == nil || record.expirationDate > newest!.expirationDate {
+                newest = record
+            }
+        }
+        return newest
+    }
+
+    private static func readManagedCertificate(from databaseURL: URL) -> MXManagedCertificateRecord? {
+        var database: OpaquePointer?
+        guard sqlite3_open_v2(
+            databaseURL.path,
+            &database,
+            SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,
+            nil
+        ) == SQLITE_OK, let database else { return nil }
+        defer { sqlite3_close(database) }
+
+        let query = """
+            SELECT ZEXPIRATIONDATE, ZREFRESHEDDATE
+            FROM ZINSTALLEDAPP
+            WHERE ZBUNDLEIDENTIFIER IN ('com.kdt.livecontainer', 'com.mazenmix.mxlocation')
+               OR ZRESIGNEDBUNDLEIDENTIFIER LIKE '%com.kdt.livecontainer%'
+               OR ZRESIGNEDBUNDLEIDENTIFIER LIKE '%com.mazenmix.mxlocation%'
+            ORDER BY ZEXPIRATIONDATE DESC
+            LIMIT 1
+            """
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK,
+              let statement
+        else { return nil }
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        let expiration = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 0))
+        let refreshed: Date?
+        if sqlite3_column_type(statement, 1) == SQLITE_NULL {
+            refreshed = nil
+        } else {
+            refreshed = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 1))
+        }
+        return MXManagedCertificateRecord(expirationDate: expiration, refreshedDate: refreshed)
+    }
+
+    private static func finishSuccess(refreshedDate: Date?) {
+        let defaults = UserDefaults.standard
+        let successfulDate = refreshedDate
+            ?? defaults.object(forKey: pendingAttemptKey) as? Date
+            ?? Date()
+        defaults.set(successfulDate, forKey: lastSuccessfulRefreshKey)
+        defaults.set("Succeeded", forKey: lastResultKey)
+        clearPendingAttempt(defaults)
+    }
+
+    private static func finishFailure(_ message: String) {
+        let defaults = UserDefaults.standard
+        defaults.set("Failed: \(message)", forKey: lastResultKey)
+        clearPendingAttempt(defaults)
+    }
+
+    private static func clearPendingAttempt(_ defaults: UserDefaults) {
+        defaults.removeObject(forKey: pendingAttemptKey)
+        defaults.removeObject(forKey: pendingProcessKey)
+        defaults.removeObject(forKey: expirationBeforeAttemptKey)
+    }
 }
 '''
 if "@objc(MXCertificateBridge)" not in swift_text:
-    side_store_swift.write_text(swift_text + swift_bridge, encoding="utf-8")
+    swift_text += swift_bridge
+side_store_swift.write_text(swift_text, encoding="utf-8")
 
 # Host branding. The executable/target names stay unchanged for compatibility.
 info = root / "Resources/Info.plist"

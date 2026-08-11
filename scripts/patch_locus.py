@@ -70,6 +70,8 @@ struct MXCertificateSnapshot {
     let expirationDate: Date?
     let lastSuccessfulRefresh: Date?
     let status: String
+    let engineReady: Bool
+    let engineStatus: String
 }
 
 enum MXCertificateRenewal {
@@ -79,13 +81,22 @@ enum MXCertificateRenewal {
     private static let expirationBeforeAttemptKey = "MXCertificateExpirationBeforeAttempt"
     private static let lastSuccessfulRefreshKey = "MXCertificateLastSuccessfulRefresh"
     private static let lastResultKey = "MXCertificateLastResult"
+    private static let managedExpirationKey = "MXRenewalManagedExpiration"
+    private static let engineReadyKey = "MXRenewalEngineReady"
+    private static let engineStatusKey = "MXRenewalEngineStatus"
     private static let processIdentifier = UUID().uuidString
-    private static let relaunchedFailureGracePeriod: TimeInterval = 6 * 60
+    private static let relaunchedFailureGracePeriod: TimeInterval = 5 * 60
 
     @discardableResult
     static func renewNow() -> Bool {
         let defaults = UserDefaults.standard
         let now = Date()
+
+        refreshHostMetadata()
+        guard defaults.bool(forKey: engineReadyKey) else {
+            markFailed(defaults.string(forKey: engineStatusKey) ?? "Renewal Engine Setup required")
+            return false
+        }
 
         // Persist the attempt before the host replaces itself. iOS terminates
         // the running process during a successful self-refresh, so the result
@@ -109,6 +120,8 @@ enum MXCertificateRenewal {
 
     static func refreshAutomaticallyIfDue() {
         let defaults = UserDefaults.standard
+        refreshHostMetadata()
+        guard defaults.bool(forKey: engineReadyKey) else { return }
         guard defaults.object(forKey: lastSuccessfulRefreshKey) as? Date != nil else { return }
         guard defaults.object(forKey: pendingAttemptKey) as? Date == nil else { return }
         guard LocalDevVPN.isConnected else { return }
@@ -124,13 +137,25 @@ enum MXCertificateRenewal {
     }
 
     static func snapshot() -> MXCertificateSnapshot {
+        refreshHostMetadata()
         reconcilePendingRefresh()
         let defaults = UserDefaults.standard
         return MXCertificateSnapshot(
             expirationDate: certificateExpirationDate(),
             lastSuccessfulRefresh: defaults.object(forKey: lastSuccessfulRefreshKey) as? Date,
-            status: defaults.string(forKey: lastResultKey) ?? "Not refreshed yet"
+            status: defaults.string(forKey: lastResultKey) ?? "Not refreshed yet",
+            engineReady: defaults.bool(forKey: engineReadyKey),
+            engineStatus: defaults.string(forKey: engineStatusKey) ?? "Checking…"
         )
+    }
+
+    @discardableResult
+    static func openRenewalSetup() -> Bool {
+        guard invokeHostSelector("openSigningManager") else {
+            markFailed("Bundled signing engine unavailable")
+            return false
+        }
+        return true
     }
 
     static func remainingText(until expiration: Date?, now: Date = Date()) -> String {
@@ -209,16 +234,22 @@ enum MXCertificateRenewal {
     }
 
     private static func certificateExpirationDate() -> Date? {
+        let managedExpiration = UserDefaults.standard.object(forKey: managedExpirationKey) as? Date
+        var embeddedExpiration: Date?
         var directory = Bundle.main.bundleURL.standardizedFileURL
         for _ in 0..<5 {
             let profileURL = directory.appendingPathComponent("embedded.mobileprovision")
             if let data = try? Data(contentsOf: profileURL),
                let expiration = expirationDate(fromProvisioningProfile: data) {
-                return expiration
+                embeddedExpiration = expiration
+                break
             }
             directory.deleteLastPathComponent()
         }
-        return nil
+
+        return [managedExpiration, embeddedExpiration]
+            .compactMap { $0 }
+            .max()
     }
 
     private static func expirationDate(fromProvisioningProfile data: Data) -> Date? {
@@ -250,6 +281,10 @@ enum MXCertificateRenewal {
         unsafeBitCast(implementation, to: ClassMethod.self)(bridgeClass, selector)
         return true
     }
+
+    private static func refreshHostMetadata() {
+        _ = invokeHostSelector("refreshRenewalMetadata")
+    }
 }
 '''
 (root / "Locus/Support/MXCertificateRenewal.swift").write_text(bridge_source, encoding="utf-8")
@@ -265,6 +300,8 @@ settings_text = settings_text.replace(
     + '    @State private var certificateExpiration: Date?\n'
     + '    @State private var certificateLastSuccess: Date?\n'
     + '    @State private var certificateStatus = "Not refreshed yet"\n'
+    + '    @State private var certificateEngineReady = false\n'
+    + '    @State private var certificateEngineStatus = "Checking…"\n'
     + "    @State private var certificateRefreshRunning = false\n",
 )
 
@@ -301,15 +338,34 @@ certificate_section = '''                Section {
                             )
                     }
 
+                    LabeledContent("Renewal engine") {
+                        Text(certificateEngineStatus)
+                            .foregroundStyle(
+                                certificateEngineReady
+                                    ? LocusTheme.statusGood
+                                    : LocusTheme.statusWarn
+                            )
+                    }
+
+                    Button {
+                        _ = MXCertificateRenewal.openRenewalSetup()
+                    } label: {
+                        Label(
+                            certificateEngineReady ? "Renewal Engine Settings" : "Set Up Renewal Engine",
+                            systemImage: "key.fill"
+                        )
+                    }
+
                     Button {
                         guard LocalDevVPN.isConnected else {
                             MXCertificateRenewal.markFailed("Connect LocalDevVPN first")
                             reloadCertificateInfo()
                             return
                         }
-                        certificateRefreshRunning = true
-                        certificateStatus = "Renewing…"
-                        if !MXCertificateRenewal.renewNow() {
+                        if MXCertificateRenewal.renewNow() {
+                            certificateRefreshRunning = true
+                            certificateStatus = "Renewing…"
+                        } else {
                             certificateRefreshRunning = false
                         }
                         reloadCertificateInfo()
@@ -323,7 +379,7 @@ certificate_section = '''                Section {
                 } header: {
                     Text("Certificate")
                 } footer: {
-                    Text("Connect LocalDevVPN before renewing. Renewal can take several minutes. Keep MX Location open; a successful self-refresh may close it while iOS replaces it. Reopen the app to see the updated certificate time.")
+                    Text("One-time setup: open the renewal engine bundled inside MX Location, sign in, choose the pairing file, then use + to install this same IPA from Files once. This is not a separate SideStore app. After setup, connect LocalDevVPN before renewing. Renewal stops with an error after 4 minutes instead of hanging.")
                 }
 
 '''
@@ -345,14 +401,10 @@ receiver_replacement = '''            .onAppear {
             }
             .onReceive(NotificationCenter.default.publisher(for: .mxCertificateRefreshSucceeded)) { _ in
                 certificateRefreshRunning = false
-                MXCertificateRenewal.markSucceeded()
                 reloadCertificateInfo()
             }
             .onReceive(NotificationCenter.default.publisher(for: .mxCertificateRefreshFailed)) { notification in
                 certificateRefreshRunning = false
-                MXCertificateRenewal.markFailed(
-                    notification.userInfo?["error"] as? String ?? "Unknown refresh error"
-                )
                 reloadCertificateInfo()
             }
 '''
@@ -438,6 +490,8 @@ settings_end_replacement = '''            .onChange(of: scenePhase) { _, phase i
         certificateExpiration = snapshot.expirationDate
         certificateLastSuccess = snapshot.lastSuccessfulRefresh
         certificateStatus = snapshot.status
+        certificateEngineReady = snapshot.engineReady
+        certificateEngineStatus = snapshot.engineStatus
         certificateRefreshRunning = snapshot.status == "Renewing…"
     }
 }
