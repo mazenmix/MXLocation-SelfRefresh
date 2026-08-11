@@ -20,9 +20,10 @@ Location Settings.
   last attempt.
 - Keeps the system **Refresh All Apps** App Intent supplied by SideStore, so an
   optional daily Shortcuts automation can refresh while the app is closed.
-- Keeps every embedded extension under the host bundle-ID prefix so Sideloadly
-  can rewrite and sign the complete app without an IXErrorDomain placeholder
-  failure.
+- Keeps only the required `LiveProcess` extension, so MX Location plus its
+  renewal extension fit within a free Apple account's three-slot limit.
+- Recovers the one-time setup UI even if an older Sideloadly installation left
+  an unrelated extension without a provisioning profile.
 
 ## Unavoidable requirements
 
@@ -44,8 +45,9 @@ cannot remove the VPN/pairing requirements SideStore itself uses.
 2. Open **Actions**.
 3. Run **Build MX Location Self Refresh IPA**.
 4. Download the `MX-Location-Self-Refresh` artifact.
-5. Install `MX-Location-Self-Refresh-unsigned.ipa` once with iLoader, SideStore,
-   or another compatible signer that preserves app extensions and app groups.
+5. Install `MX-Location-Self-Refresh-unsigned.ipa` once with Sideloadly, iLoader,
+   or another compatible signer. Keep app extensions enabled; this build has
+   only the one extension required for renewal.
 
 ## First-time setup
 

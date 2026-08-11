@@ -84,6 +84,7 @@ enum MXCertificateRenewal {
     private static let managedExpirationKey = "MXRenewalManagedExpiration"
     private static let engineReadyKey = "MXRenewalEngineReady"
     private static let engineStatusKey = "MXRenewalEngineStatus"
+    private static let v106StatusMigrationKey = "MXCertificateV106StatusMigration"
     private static let processIdentifier = UUID().uuidString
     private static let relaunchedFailureGracePeriod: TimeInterval = 5 * 60
 
@@ -137,6 +138,7 @@ enum MXCertificateRenewal {
     }
 
     static func snapshot() -> MXCertificateSnapshot {
+        migrateIncorrectInitialSuccessIfNeeded()
         refreshHostMetadata()
         reconcilePendingRefresh()
         let defaults = UserDefaults.standard
@@ -231,6 +233,19 @@ enum MXCertificateRenewal {
         defaults.removeObject(forKey: pendingAttemptKey)
         defaults.removeObject(forKey: pendingProcessKey)
         defaults.removeObject(forKey: expirationBeforeAttemptKey)
+    }
+
+    private static func migrateIncorrectInitialSuccessIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: v106StatusMigrationKey) else { return }
+
+        // Older builds treated the initial SideStore database timestamp as a
+        // completed renewal. Reset that inherited state; only an expiry change
+        // after Renew Certificate Now is considered a successful renewal.
+        defaults.removeObject(forKey: lastSuccessfulRefreshKey)
+        clearPendingAttempt(defaults)
+        defaults.set("Not refreshed yet", forKey: lastResultKey)
+        defaults.set(true, forKey: v106StatusMigrationKey)
     }
 
     private static func certificateExpirationDate() -> Date? {
@@ -351,7 +366,7 @@ certificate_section = '''                Section {
                         _ = MXCertificateRenewal.openRenewalSetup()
                     } label: {
                         Label(
-                            certificateEngineReady ? "Renewal Engine Settings" : "Set Up Renewal Engine",
+                            certificateEngineReady ? "MX Signing Settings" : "Open MX Signing Setup",
                             systemImage: "key.fill"
                         )
                     }
@@ -379,7 +394,7 @@ certificate_section = '''                Section {
                 } header: {
                     Text("Certificate")
                 } footer: {
-                    Text("One-time setup: open the renewal engine bundled inside MX Location, sign in, choose the pairing file, then use + to install this same IPA from Files once. This is not a separate SideStore app. After setup, connect LocalDevVPN before renewing. Renewal stops with an error after 4 minutes instead of hanging.")
+                    Text("One-time setup: open the signing engine built into MX Location, sign in, choose the pairing file, then use + to install this same IPA from Files once. A separate SideStore app is not required. After setup, connect LocalDevVPN before renewing. Renewal stops with an error after 4 minutes instead of hanging.")
                 }
 
 '''

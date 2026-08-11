@@ -109,6 +109,65 @@ hooks_text = hooks_text.replace(
     'versionLabel.text = [NSString stringWithFormat:@"LC %@, SS %@", LCVersion, SSVersion];',
     'versionLabel.text = @"MX Renewal Engine — built into MX Location";',
 )
+
+# SideStore records every extension found in the currently installed host when
+# its database starts. If Sideloadly omitted a provisioning profile from an old
+# build, that reconciliation used to abort before the one-time setup UI could
+# open. Hide only the *installed host's* extensions from foreground database
+# bootstrap. An IPA selected from Files has a different bundle URL, so its
+# LiveProcess extension remains visible and is signed normally during reinstall.
+bundle_end_needle = '''+ (NSBundle*)hook_realMainBundle {
+    if (!NSUserDefaults.isLiveProcess) return NSUserDefaults.lcMainBundle;
+    
+    static NSBundle* lcAppBundle = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        lcAppBundle = [NSBundle bundleWithURL: NSUserDefaults.lcMainBundle.bundleURL.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent];
+    });
+    return lcAppBundle;
+}
+
+@end
+'''
+bundle_end_replacement = '''+ (NSBundle*)hook_realMainBundle {
+    if (!NSUserDefaults.isLiveProcess) return NSUserDefaults.lcMainBundle;
+    
+    static NSBundle* lcAppBundle = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        lcAppBundle = [NSBundle bundleWithURL: NSUserDefaults.lcMainBundle.bundleURL.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent];
+    });
+    return lcAppBundle;
+}
+
+- (NSURL*)hook_mxRenewalBuiltInPlugInsURL {
+    NSURL* plugInsURL = [self hook_mxRenewalBuiltInPlugInsURL];
+    BOOL isForegroundSetup = NSUserDefaults.isSideStore && !NSUserDefaults.isLiveProcess;
+    BOOL isInstalledHost = [self.bundleURL.path isEqualToString:NSUserDefaults.lcMainBundle.bundleURL.path];
+    if (isForegroundSetup && isInstalledHost) {
+        return nil;
+    }
+    return plugInsURL;
+}
+
+@end
+'''
+if bundle_end_needle not in hooks_text:
+    raise RuntimeError("Unable to add renewal-engine extension recovery hook")
+hooks_text = hooks_text.replace(bundle_end_needle, bundle_end_replacement)
+
+hook_install_needle = '''    swizzleClassMethod(NSBundle.class, @selector(realMainBundle), @selector(hook_realMainBundle));
+    
+    // replace altStoreSourceURL
+'''
+hook_install_replacement = '''    swizzleClassMethod(NSBundle.class, @selector(realMainBundle), @selector(hook_realMainBundle));
+    swizzle(NSBundle.class, @selector(builtInPlugInsURL), @selector(hook_mxRenewalBuiltInPlugInsURL));
+    
+    // replace altStoreSourceURL
+'''
+if hook_install_needle not in hooks_text:
+    raise RuntimeError("Unable to install renewal-engine extension recovery hook")
+hooks_text = hooks_text.replace(hook_install_needle, hook_install_replacement)
 hooks.write_text(hooks_text, encoding="utf-8")
 
 bridging = root / "SideStoreSupport/SideStore-Bridging-Header.h"
@@ -278,8 +337,12 @@ public final class MXCertificateBridge: NSObject {
         let defaults = UserDefaults.standard
         let record = managedCertificateRecord()
         let hasPairingFile = pairingFileExists()
+        let hasRefreshExtensionProfile = refreshExtensionProfileExists()
 
         var missing = [String]()
+        if !hasRefreshExtensionProfile {
+            missing.append("LiveProcess signing profile; reinstall this IPA with app extensions enabled")
+        }
         if !hasPairingFile {
             missing.append("pairing file")
         }
@@ -294,10 +357,6 @@ public final class MXCertificateBridge: NSObject {
 
         if let record {
             defaults.set(record.expirationDate, forKey: managedExpirationKey)
-            if let refreshedDate = record.refreshedDate,
-               defaults.object(forKey: lastSuccessfulRefreshKey) as? Date == nil {
-                defaults.set(refreshedDate, forKey: lastSuccessfulRefreshKey)
-            }
         } else {
             defaults.removeObject(forKey: managedExpirationKey)
         }
@@ -308,6 +367,16 @@ public final class MXCertificateBridge: NSObject {
             expirationDate: record?.expirationDate,
             refreshedDate: record?.refreshedDate
         )
+    }
+
+    private static func refreshExtensionProfileExists() -> Bool {
+        guard let plugInsURL = UserDefaults.lcMainBundle().builtInPlugInsURL else {
+            return false
+        }
+        let profileURL = plugInsURL
+            .appendingPathComponent("LiveProcess.appex", isDirectory: true)
+            .appendingPathComponent("embedded.mobileprovision", isDirectory: false)
+        return FileManager.default.fileExists(atPath: profileURL.path)
     }
 
     private static func pairingFileExists() -> Bool {

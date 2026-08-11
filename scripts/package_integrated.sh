@@ -48,6 +48,8 @@ APP="$WORK_DIR/Payload/MXLocationHost.app"
 
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.6' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.6' "$APP/Info.plist"
 
 # Bundle MX Location as a built-in guest framework.
 MX_FRAMEWORK="$APP/Frameworks/MXLocationApp.framework"
@@ -83,19 +85,24 @@ cp -R "$SIDE_FRAMEWORK/Metadata.appintents" "$APP/Metadata.appintents"
 sed -i '' 's/9SideStore20RefreshAllAppsIntentV/16SideStoreSupport20RefreshAllAppsIntentV/g' "$APP/Metadata.appintents/extract.actionsdata"
 sed -i '' 's/9SideStore26RefreshAllAppsWidgetIntentV/16SideStoreSupport26RefreshAllAppsWidgetIntentV/g' "$APP/Metadata.appintents/extract.actionsdata"
 
-# Keep the refresh widget extension under the host app.
-if [[ -d "$SIDE_FRAMEWORK/PlugIns/AltWidgetExtension.appex" ]]; then
-  mkdir -p "$APP/PlugIns"
-  mv "$SIDE_FRAMEWORK/PlugIns/AltWidgetExtension.appex" "$APP/PlugIns/LiveWidgetExtension.appex"
-  cp -R "$SIDE_FRAMEWORK/Frameworks" "$APP/PlugIns/LiveWidgetExtension.appex/"
-  # Every embedded extension ID must use the host bundle ID as its prefix.
-  # Sideloadly appends a per-account suffix to com.kdt.livecontainer while
-  # signing and only rewrites extensions that already share that prefix.
-  /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidgetExtension' "$APP/PlugIns/LiveWidgetExtension.appex/Info.plist"
-  /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable LiveWidgetExtension' "$APP/PlugIns/LiveWidgetExtension.appex/Info.plist"
-  mv "$APP/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension" "$APP/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension"
-  ldid -S"$LC_ROOT/.github/sidelc/LiveWidgetExtension_adhoc.xml" "$APP/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension"
-fi
+# A free Apple developer profile permits only three active app/extension slots.
+# The previous package contained the host plus four extensions, so Sideloadly
+# could leave an extension without embedded.mobileprovision and the integrated
+# signing manager then failed during database start-up. Only LiveProcess is
+# required by MX Location's renewal bridge; keep it and remove the unrelated
+# launcher/share/widget extensions. The resulting install consumes two slots:
+# MX Location + LiveProcess.
+rm -rf \
+  "$APP/PlugIns/LaunchAppExtension.appex" \
+  "$APP/PlugIns/ShareExtension.appex" \
+  "$APP/PlugIns/LiveWidgetExtension.appex" \
+  "$SIDE_FRAMEWORK/PlugIns"
+
+LIVE_PROCESS="$APP/PlugIns/LiveProcess.appex"
+test -d "$LIVE_PROCESS"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.kdt.livecontainer.LiveProcess' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.6' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.6' "$LIVE_PROCESS/Info.plist"
 
 # Remove stale signatures. The output intentionally remains unsigned so the
 # user's on-device signing identity and app-group entitlements can be applied.
