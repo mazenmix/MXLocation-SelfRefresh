@@ -91,10 +91,28 @@ bootstrap.write_text(text, encoding="utf-8")
 hooks = root / "SideStoreSupport/SideStoreHooks.m"
 hooks_text = hooks.read_text(encoding="utf-8")
 hook_needle = "void installSideStoreHooks(void) {\n"
-hook_function = '''void MXOpenSigningManager(void) {
+hook_function = '''static BOOL MXSigningManagerLaunchInProgress = NO;
+
+void MXOpenSigningManager(void) {
+    @synchronized(NSUserDefaults.class) {
+        if (MXSigningManagerLaunchInProgress) {
+            NSLog(@"[MX Location] Ignoring duplicate signing-manager launch request");
+            return;
+        }
+        MXSigningManagerLaunchInProgress = YES;
+    }
+
     [NSUserDefaults.lcUserDefaults setObject:@"builtinSideStore" forKey:@"selected"];
     [NSUserDefaults.lcUserDefaults synchronize];
     [LCSharedUtils launchToGuestAppWithClassicMode:0];
+
+    // A successful switch terminates this process. Reset the guard only when
+    // LaunchServices did not complete the restart so the user can retry safely.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        @synchronized(NSUserDefaults.class) {
+            MXSigningManagerLaunchInProgress = NO;
+        }
+    });
 }
 
 '''
