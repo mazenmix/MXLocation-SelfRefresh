@@ -16,6 +16,9 @@ Location Settings.
   last attempt.
 - Keeps the system **Refresh All Apps** App Intent supplied by SideStore, so an
   optional daily Shortcuts automation can refresh while the app is closed.
+- Keeps every embedded extension under the host bundle-ID prefix so Sideloadly
+  can rewrite and sign the complete app without an IXErrorDomain placeholder
+  failure.
 
 ## Unavoidable requirements
 
@@ -68,4 +71,3 @@ or passwords in this repository or in GitHub Actions secrets.
 
 This builder preserves upstream license files in the generated source/build
 workspace. Distribution of the combined build must comply with AGPL-3.0.
-

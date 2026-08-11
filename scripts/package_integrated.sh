@@ -88,7 +88,10 @@ if [[ -d "$SIDE_FRAMEWORK/PlugIns/AltWidgetExtension.appex" ]]; then
   mkdir -p "$APP/PlugIns"
   mv "$SIDE_FRAMEWORK/PlugIns/AltWidgetExtension.appex" "$APP/PlugIns/LiveWidgetExtension.appex"
   cp -R "$SIDE_FRAMEWORK/Frameworks" "$APP/PlugIns/LiveWidgetExtension.appex/"
-  /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.mazenmix.mxlocation.LiveWidget' "$APP/PlugIns/LiveWidgetExtension.appex/Info.plist"
+  # Every embedded extension ID must use the host bundle ID as its prefix.
+  # Sideloadly appends a per-account suffix to com.kdt.livecontainer while
+  # signing and only rewrites extensions that already share that prefix.
+  /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidgetExtension' "$APP/PlugIns/LiveWidgetExtension.appex/Info.plist"
   /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable LiveWidgetExtension' "$APP/PlugIns/LiveWidgetExtension.appex/Info.plist"
   mv "$APP/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension" "$APP/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension"
   ldid -S"$LC_ROOT/.github/sidelc/LiveWidgetExtension_adhoc.xml" "$APP/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension"
