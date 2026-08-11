@@ -55,8 +55,9 @@ cannot remove the VPN/pairing requirements SideStore itself uses.
 5. Reopen MX Location. The map opens directly from then on.
 
 In MX Location Settings, use **Renew Certificate Now** while LocalDevVPN is
-connected. A successful self-refresh closes the running app while iOS replaces
-it; reopen MX Location to see the updated certificate details.
+connected. Renewal can take several minutes, so keep MX Location open while it
+shows **Renewing…**. A successful self-refresh may close the running app while
+iOS replaces it; reopen MX Location to see the updated certificate details.
 
 ## Security
 

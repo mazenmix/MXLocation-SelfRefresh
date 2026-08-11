@@ -75,9 +75,12 @@ struct MXCertificateSnapshot {
 enum MXCertificateRenewal {
     private static let lastAttemptKey = "MXCertificateLastAutomaticAttempt"
     private static let pendingAttemptKey = "MXCertificatePendingAttempt"
+    private static let pendingProcessKey = "MXCertificatePendingProcess"
     private static let expirationBeforeAttemptKey = "MXCertificateExpirationBeforeAttempt"
     private static let lastSuccessfulRefreshKey = "MXCertificateLastSuccessfulRefresh"
     private static let lastResultKey = "MXCertificateLastResult"
+    private static let processIdentifier = UUID().uuidString
+    private static let relaunchedFailureGracePeriod: TimeInterval = 6 * 60
 
     @discardableResult
     static func renewNow() -> Bool {
@@ -88,6 +91,7 @@ enum MXCertificateRenewal {
         // the running process during a successful self-refresh, so the result
         // is reconciled against the new provisioning profile on next launch.
         defaults.set(now, forKey: pendingAttemptKey)
+        defaults.set(processIdentifier, forKey: pendingProcessKey)
         defaults.set(now, forKey: lastAttemptKey)
         defaults.set("Renewing…", forKey: lastResultKey)
         if let expiration = certificateExpirationDate() {
@@ -168,6 +172,13 @@ enum MXCertificateRenewal {
         let defaults = UserDefaults.standard
         guard let attempt = defaults.object(forKey: pendingAttemptKey) as? Date else { return }
 
+        // RefreshAllApps may legitimately take several minutes. Scene changes
+        // while its embedded SideStore process is working must not be treated as
+        // a failure. In the process that started the operation, the host's
+        // success/failure notification is authoritative.
+        let initiatingProcess = defaults.string(forKey: pendingProcessKey)
+        guard initiatingProcess != processIdentifier else { return }
+
         let previousExpiration = defaults.object(forKey: expirationBeforeAttemptKey) as? Date
         let currentExpiration = certificateExpirationDate()
         if let currentExpiration {
@@ -182,16 +193,18 @@ enum MXCertificateRenewal {
             }
         }
 
-        // If the app is running again and its profile did not advance, the
-        // replacement did not complete. Keep a short grace period for an
-        // in-flight refresh that has not terminated the process yet.
-        if Date().timeIntervalSince(attempt) > 5 {
+        // A successful self-replacement terminates MX Location. On the next
+        // launch the changed profile above proves success. If iOS relaunched us
+        // while the helper is still finishing, retain the pending state for the
+        // same six-minute window used by the host-side refresh timeout.
+        if Date().timeIntervalSince(attempt) > relaunchedFailureGracePeriod {
             markFailed("Certificate expiry did not change")
         }
     }
 
     private static func clearPendingAttempt(_ defaults: UserDefaults) {
         defaults.removeObject(forKey: pendingAttemptKey)
+        defaults.removeObject(forKey: pendingProcessKey)
         defaults.removeObject(forKey: expirationBeforeAttemptKey)
     }
 
@@ -310,7 +323,7 @@ certificate_section = '''                Section {
                 } header: {
                     Text("Certificate")
                 } footer: {
-                    Text("Connect LocalDevVPN before renewing. A successful self-refresh closes MX Location while iOS replaces it; reopen the app to see the updated certificate time.")
+                    Text("Connect LocalDevVPN before renewing. Renewal can take several minutes. Keep MX Location open; a successful self-refresh may close it while iOS replaces it. Reopen the app to see the updated certificate time.")
                 }
 
 '''
