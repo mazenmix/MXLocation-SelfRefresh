@@ -50,7 +50,7 @@ cannot remove the VPN/pairing requirements SideStore itself uses.
 2. Open **Actions**.
 3. Run **Build MX Location Self Refresh IPA**.
 4. Download the `MX-Location-Self-Refresh` artifact.
-5. Install `MX-Location-Self-Refresh-v1.0.7-unsigned.ipa` once with Sideloadly, iLoader,
+5. Install `MX-Location-Self-Refresh-v1.0.8-unsigned.ipa` once with Sideloadly, iLoader,
    or another compatible signer. Keep app extensions enabled; this build has
    only the one extension required for renewal.
 

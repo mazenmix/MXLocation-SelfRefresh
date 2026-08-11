@@ -119,16 +119,16 @@ jobs:
             Locus-src \
             "$PWD/SideStore-src/SideStore.ipa" \
             "$PWD/dylibify" \
-            "$PWD/MX-Location-Self-Refresh-v1.0.7-unsigned.ipa"
-          shasum -a 256 MX-Location-Self-Refresh-v1.0.7-unsigned.ipa > MX-Location-Self-Refresh-v1.0.7-unsigned.ipa.sha256
+            "$PWD/MX-Location-Self-Refresh-v1.0.8-unsigned.ipa"
+          shasum -a 256 MX-Location-Self-Refresh-v1.0.8-unsigned.ipa > MX-Location-Self-Refresh-v1.0.8-unsigned.ipa.sha256
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: MX-Location-Self-Refresh
           path: |
-            MX-Location-Self-Refresh-v1.0.7-unsigned.ipa
-            MX-Location-Self-Refresh-v1.0.7-unsigned.ipa.sha256
+            MX-Location-Self-Refresh-v1.0.8-unsigned.ipa
+            MX-Location-Self-Refresh-v1.0.8-unsigned.ipa.sha256
             Locus-src/xcodebuild-locus.log
             LiveContainer-src/xcodebuild-host.log
             SideStore-src/xcodebuild-sidestore.log
