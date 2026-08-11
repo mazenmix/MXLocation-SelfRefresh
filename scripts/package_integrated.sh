@@ -50,8 +50,8 @@ APP="$WORK_DIR/Payload/MXLocationHost.app"
 
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$APP/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.7' "$APP/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.7' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.8' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.8' "$APP/Info.plist"
 
 # Bundle MX Location as a built-in guest framework.
 MX_FRAMEWORK="$APP/Frameworks/MXLocationApp.framework"
@@ -101,8 +101,8 @@ rm -rf \
 LIVE_PROCESS="$APP/PlugIns/LiveProcess.appex"
 test -d "$LIVE_PROCESS"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.kdt.livecontainer.LiveProcess' "$LIVE_PROCESS/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.7' "$LIVE_PROCESS/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.7' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.8' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.8' "$LIVE_PROCESS/Info.plist"
 
 # Remove stale signatures. The output intentionally remains unsigned so the
 # user's on-device signing identity and app-group entitlements can be applied.
