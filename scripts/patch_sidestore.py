@@ -13,30 +13,48 @@ def replace_required(path: Path, old: str, new: str) -> None:
 
 
 # Sideloadly creates the one certificate allowed by a free developer account,
-# but its certificate name does not begin with SideStore/AltStore. Upstream
-# consequently ignores it and asks Apple for a second certificate, which Apple
-# rejects. For free teams, show the normal revoke/replace prompt for any portal
-# certificate whose private key is unavailable. Paid teams retain upstream's
-# conservative filtering so unrelated distribution certificates are untouched.
+# but Apple may report it under a generic Apple Development name. The upstream
+# LiveContainer build filters the revoke prompt to legacy iOS Development names,
+# then incorrectly asks Apple for a second certificate when that list is empty.
+# For free teams, show the normal revoke/replace prompt for any portal certificate
+# whose private key is unavailable. Paid teams retain upstream's conservative
+# filtering so unrelated distribution certificates are untouched.
 authentication = (
     root
     / "SideStore/Core/Operations/StandaloneOperations/AuthenticationOperation.swift"
 )
 replace_required(
     authentication,
-    '''        let filteredCertificates = ourCertificates.filter { a in
-            a.machineName?.starts(with: "SideStore") == true || a.machineName?.starts(with: "AltStore") == true
+    '''        let iosCertificates = portalCertificates.filter { cert in
+            let nameLower = cert.name.lowercased()
+            return nameLower.contains("ios development") || nameLower.contains("iphone developer")
         }
+
+        self.debugLog("[Authentication] replaceCertificate: Starting. Total certs on portal: \\(portalCertificates.count), iOS Development certs: \\(iosCertificates.count)")
+        
+        if iosCertificates.isEmpty {
+            self.verboseLog("[Authentication] replaceCertificate: No iOS Development certificates found on portal. Requesting new...")
+            return try await self.requestCertificate(for: team, session: session)
+        }
+        
+        self.debugLog("[Authentication] replaceCertificate: Presenting revoke alert for \\(iosCertificates.count) iOS Development cert(s)...")
+        let action = try await self.context.authenticationHandler.resolveRevocation(certificates: iosCertificates, teamType: team.type)
 ''',
-    '''        let filteredCertificates: [ALTCertificate]
-        if team.type == .free {
-            filteredCertificates = ourCertificates
-        } else {
-            filteredCertificates = ourCertificates.filter { certificate in
-                certificate.machineName?.starts(with: "SideStore") == true ||
-                certificate.machineName?.starts(with: "AltStore") == true
-            }
+    '''        let iosCertificates = portalCertificates.filter { cert in
+            let nameLower = cert.name.lowercased()
+            return nameLower.contains("ios development") || nameLower.contains("iphone developer")
         }
+
+        let replaceableCertificates = team.type == .free ? portalCertificates : iosCertificates
+        self.debugLog("[Authentication] replaceCertificate: Starting. Total certs on portal: \\(portalCertificates.count), replaceable certs: \\(replaceableCertificates.count)")
+        
+        if replaceableCertificates.isEmpty {
+            self.verboseLog("[Authentication] replaceCertificate: No replaceable development certificates found on portal. Requesting new...")
+            return try await self.requestCertificate(for: team, session: session)
+        }
+        
+        self.debugLog("[Authentication] replaceCertificate: Presenting revoke alert for \\(replaceableCertificates.count) development cert(s)...")
+        let action = try await self.context.authenticationHandler.resolveRevocation(certificates: replaceableCertificates, teamType: team.type)
 ''',
 )
 
