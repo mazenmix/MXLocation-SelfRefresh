@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mx-self-refresh-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-15
@@ -38,8 +42,8 @@ jobs:
           git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-          git clone --recursive https://github.com/LiveContainer/SideStore.git SideStore-src
-          git -C SideStore-src checkout d0454aeecb77d5ecc477855604101904967f8a25
+          git clone --branch LiveContainerSupport --recursive https://github.com/LiveContainer/SideStore.git SideStore-src
+          git -C SideStore-src checkout 8f0f8faed0529b35ad79e59576f129ad8a3d94fd
           git -C SideStore-src submodule update --init --recursive
 
       - name: Apply MX Location integration
