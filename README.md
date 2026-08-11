@@ -24,6 +24,11 @@ Location Settings.
   renewal extension fit within a free Apple account's three-slot limit.
 - Recovers the one-time setup UI even if an older Sideloadly installation left
   an unrelated extension without a provisioning profile.
+- Makes sign-in errors readable inside the embedded manager instead of showing
+  an empty white card.
+- Detects a Sideloadly-owned certificate on a free account and offers to revoke
+  and replace it, instead of incorrectly requesting a second certificate and
+  failing at Apple's one-certificate limit.
 
 ## Unavoidable requirements
 
@@ -45,7 +50,7 @@ cannot remove the VPN/pairing requirements SideStore itself uses.
 2. Open **Actions**.
 3. Run **Build MX Location Self Refresh IPA**.
 4. Download the `MX-Location-Self-Refresh` artifact.
-5. Install `MX-Location-Self-Refresh-unsigned.ipa` once with Sideloadly, iLoader,
+5. Install `MX-Location-Self-Refresh-v1.0.7-unsigned.ipa` once with Sideloadly, iLoader,
    or another compatible signer. Keep app extensions enabled; this build has
    only the one extension required for renewal.
 
@@ -59,7 +64,10 @@ bundled renewal engine. Complete these steps once:
    signing engine bundled inside the same MX Location app; it does not require a
    separately installed SideStore app.
 3. Sign in with the Apple Account used for free/paid developer signing and
-   select a valid pairing file.
+   select a valid pairing file. If a free account already has a Sideloadly
+   certificate whose private key is unavailable on-device, choose **Yes** when
+   MX asks to revoke and replace it. Apps signed by that old certificate must
+   be reinstalled or signed again with the new certificate.
 4. Tap **+** in the bundled engine and install the same MX Location IPA from
    Files once. iOS may close the app while it replaces the Sideloadly-installed
    copy.

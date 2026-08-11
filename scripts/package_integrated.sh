@@ -1,15 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ $# -ne 4 ]]; then
-  echo "usage: package_integrated.sh LIVE_CONTAINER_ROOT LOCUS_ROOT DYLIBIFY OUTPUT_IPA" >&2
+if [[ $# -ne 5 ]]; then
+  echo "usage: package_integrated.sh LIVE_CONTAINER_ROOT LOCUS_ROOT SIDESTORE_IPA DYLIBIFY OUTPUT_IPA" >&2
   exit 64
 fi
 
 LC_ROOT=$(cd "$1" && pwd)
 LOCUS_ROOT=$(cd "$2" && pwd)
-DYLIBIFY=$(cd "$(dirname "$3")" && pwd)/$(basename "$3")
-OUTPUT_IPA=$(cd "$(dirname "$4")" && pwd)/$(basename "$4")
+SIDESTORE_IPA=$(cd "$(dirname "$3")" && pwd)/$(basename "$3")
+DYLIBIFY=$(cd "$(dirname "$4")" && pwd)/$(basename "$4")
+OUTPUT_IPA=$(cd "$(dirname "$5")" && pwd)/$(basename "$5")
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -19,6 +20,7 @@ LOCUS_APP=$(find "$LOCUS_ROOT/build/Build/Products/Release-iphoneos" -maxdepth 1
 test -d "$HOST_APP"
 test -n "$LOCUS_APP"
 test -d "$LOCUS_APP"
+test -f "$SIDESTORE_IPA"
 test -x "$DYLIBIFY"
 
 mkdir -p "$WORK_DIR/Payload"
@@ -48,8 +50,8 @@ APP="$WORK_DIR/Payload/MXLocationHost.app"
 
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$APP/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.6' "$APP/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.6' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.7' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.7' "$APP/Info.plist"
 
 # Bundle MX Location as a built-in guest framework.
 MX_FRAMEWORK="$APP/Frameworks/MXLocationApp.framework"
@@ -61,11 +63,9 @@ mv "$MX_FRAMEWORK/$MX_EXECUTABLE.dylib" "$MX_FRAMEWORK/$MX_EXECUTABLE"
 ldid -S"" "$MX_FRAMEWORK/$MX_EXECUTABLE"
 cp "$(dirname "$0")/LCAppInfo-MX.plist" "$MX_FRAMEWORK/LCAppInfo.plist"
 
-# Download and embed the LiveContainer-compatible SideStore build.
+# Embed the locally patched LiveContainer-compatible SideStore build.
 mkdir -p "$WORK_DIR/sidestore"
-curl -fL --retry 3 \
-  -o "$WORK_DIR/sidestore/SideStore.ipa" \
-  https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa
+cp "$SIDESTORE_IPA" "$WORK_DIR/sidestore/SideStore.ipa"
 unzip -q "$WORK_DIR/sidestore/SideStore.ipa" -d "$WORK_DIR/sidestore/unpacked"
 SIDE_APP="$WORK_DIR/sidestore/unpacked/Payload/SideStore.app"
 test -d "$SIDE_APP"
@@ -101,8 +101,8 @@ rm -rf \
 LIVE_PROCESS="$APP/PlugIns/LiveProcess.appex"
 test -d "$LIVE_PROCESS"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.kdt.livecontainer.LiveProcess' "$LIVE_PROCESS/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.6' "$LIVE_PROCESS/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.6' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.7' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.7' "$LIVE_PROCESS/Info.plist"
 
 # Remove stale signatures. The output intentionally remains unsigned so the
 # user's on-device signing identity and app-group entitlements can be applied.
