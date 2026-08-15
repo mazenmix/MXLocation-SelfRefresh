@@ -35,18 +35,43 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --recursive https://github.com/LiveContainer/LiveContainer.git LiveContainer-src
-          git -C LiveContainer-src checkout fe4c0ea7607322f7a2c7aa3111d7082054b14c8b
-          git -C LiveContainer-src submodule update --init --recursive
 
-          git clone https://github.com/ChrisMack32/Locus.git Locus-src
+          # GitHub occasionally resets large HTTP/2 git pack transfers on hosted runners.
+          # Force HTTP/1.1 and retry network-sensitive operations instead of failing the whole build.
+          git config --global http.version HTTP/1.1
+          git config --global http.lowSpeedLimit 1000
+          git config --global http.lowSpeedTime 60
+
+          retry() {
+            local attempts=5
+            local delay=8
+            local n=1
+            until "$@"; do
+              if [ "$n" -ge "$attempts" ]; then
+                echo "Command failed after $attempts attempts: $*" >&2
+                return 1
+              fi
+              echo "Network attempt $n failed; retrying in ${delay}s..." >&2
+              n=$((n + 1))
+              sleep "$delay"
+              delay=$((delay * 2))
+            done
+          }
+
+          retry git clone --recursive https://github.com/LiveContainer/LiveContainer.git LiveContainer-src
+          git -C LiveContainer-src checkout fe4c0ea7607322f7a2c7aa3111d7082054b14c8b
+          retry git -C LiveContainer-src submodule update --init --recursive
+
+          retry git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-          git clone --no-checkout https://github.com/LiveContainer/SideStore.git SideStore-src
-          git -C SideStore-src fetch origin 8f0f8faed0529b35ad79e59576f129ad8a3d94fd --depth=1
+          mkdir SideStore-src
+          git -C SideStore-src init
+          git -C SideStore-src remote add origin https://github.com/LiveContainer/SideStore.git
+          retry git -C SideStore-src fetch --no-tags --depth=1 origin 8f0f8faed0529b35ad79e59576f129ad8a3d94fd
           git -C SideStore-src checkout --detach FETCH_HEAD
           git -C SideStore-src submodule sync --recursive
-          git -C SideStore-src submodule update --init --recursive
+          retry git -C SideStore-src submodule update --init --recursive --depth=1
 
       - name: Apply MX Location integration
         shell: bash
