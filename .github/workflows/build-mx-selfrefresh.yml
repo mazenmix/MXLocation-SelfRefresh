@@ -42,8 +42,10 @@ jobs:
           git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-          git clone --branch LiveContainerSupport --recursive https://github.com/LiveContainer/SideStore.git SideStore-src
-          git -C SideStore-src checkout 8f0f8faed0529b35ad79e59576f129ad8a3d94fd
+          git clone --no-checkout https://github.com/LiveContainer/SideStore.git SideStore-src
+          git -C SideStore-src fetch origin 8f0f8faed0529b35ad79e59576f129ad8a3d94fd --depth=1
+          git -C SideStore-src checkout --detach FETCH_HEAD
+          git -C SideStore-src submodule sync --recursive
           git -C SideStore-src submodule update --init --recursive
 
       - name: Apply MX Location integration
