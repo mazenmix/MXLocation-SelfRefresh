@@ -14,8 +14,8 @@ def replace_required(path: Path, old: str, new: str) -> None:
 
 # Navigation compatibility build identity.
 project = root / "project.yml"
-replace_required(project, '        MARKETING_VERSION: "1.0.2"\n', '        MARKETING_VERSION: "1.0.11"\n')
-replace_required(project, '        CURRENT_PROJECT_VERSION: "3"\n', '        CURRENT_PROJECT_VERSION: "11"\n')
+replace_required(project, '        MARKETING_VERSION: "1.0.2"\n', '        MARKETING_VERSION: "1.0.12"\n')
+replace_required(project, '        CURRENT_PROJECT_VERSION: "3"\n', '        CURRENT_PROJECT_VERSION: "12"\n')
 
 spoof = root / "Locus/Engine/SpoofSession.swift"
 
@@ -25,7 +25,8 @@ replace_required(
     "    private let locationKeeper = BackgroundKeepAlive()\n",
     "    private let locationKeeper = BackgroundKeepAlive()\n"
     "    private let navigationKeepAlive = SilentAudioKeepAlive()\n"
-    "    private var routeStreaming = false\n",
+    "    private var routeStreaming = false\n"
+    "    private var heartbeatPhase = false\n",
 )
 
 replace_required(
@@ -59,9 +60,8 @@ replace_required(
     "            startResend(pairing: pairing)\n",
 )
 
-# Route playback is the important navigation path. Feed coordinates at a stable,
-# navigation-like cadence so third-party navigation apps can infer course and
-# speed from successive samples instead of receiving sparse jumps.
+# Route playback: feed coordinates at a stable navigation-like cadence so apps
+# can infer course and speed from successive samples rather than sparse jumps.
 old_route = '''    func followRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {
         guard pairing.hasPairingFile, coordinates.count >= 2 else { return }
         routeTask?.cancel()
@@ -114,9 +114,6 @@ new_route = '''    func followRoute(_ coordinates: [CLLocationCoordinate2D], pai
                 self.apply(previous, pairing: pairing, markRecent: true)
             }
 
-            // Fixed motion cadence per travel mode. The physical displacement is
-            // derived from speed * dt, so speed/course remain inferable from the
-            // coordinate stream without fabricating extra GPS metadata.
             let sampleInterval: TimeInterval
             switch mode {
             case .walk: sampleInterval = 0.50
@@ -161,8 +158,8 @@ new_route = '''    func followRoute(_ coordinates: [CLLocationCoordinate2D], pai
 '''
 replace_required(spoof, old_route, new_route)
 
-# Motion samples should not restart timers/background sessions every 250-500 ms.
-# They only advance the already-established DVT session and update UI state.
+# Motion samples advance the already-established DVT session without restarting
+# timers/background sessions on every tick.
 helper_anchor = '''    private func tickJoystick(pairing: PairingStore) {
 '''
 helper = '''    private func applyMotionSample(_ coordinate: CLLocationCoordinate2D, pairing: PairingStore) -> Bool {
@@ -191,8 +188,6 @@ helper = '''    private func applyMotionSample(_ coordinate: CLLocationCoordinat
 '''
 replace_required(spoof, helper_anchor, helper)
 
-# Joystick is another continuous-motion path; keep it on the same lightweight
-# stream instead of rebuilding session timers on every tick.
 replace_required(
     spoof,
     "        apply(next, pairing: pairing, markRecent: false)\n"
@@ -221,17 +216,27 @@ old_resend = '''    private func startResend(pairing: PairingStore) {
 
 new_resend = '''    private func startResend(pairing: PairingStore) {
         resendTimer?.invalidate()
+        heartbeatPhase = false
 
-        // Stationary heartbeat keeps the DVT connection fresh. During route
-        // playback the motion stream itself is the heartbeat, so avoid duplicate
-        // stationary samples between movement samples.
+        // Sending the exact same coordinate repeatedly can be coalesced by
+        // locationd, leaving navigation clients with an old sample timestamp.
+        // Alternate a sub-meter east/west pulse around the selected coordinate.
+        // The anchor remains unchanged in UI/state, but Core Location receives a
+        // genuinely fresh location event every second while stationary.
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let sim = self.simulated, self.isSpoofing else { return }
                 guard !self.routeStreaming else { return }
+
+                self.heartbeatPhase.toggle()
+                let pulseMeters = self.heartbeatPhase ? 0.65 : -0.65
+                let latitudeRadians = sim.latitude * .pi / 180.0
+                let metersPerLongitudeDegree = max(1.0, 111_320.0 * cos(latitudeRadians))
+                let pulseLongitude = sim.longitude + pulseMeters / metersPerLongitudeDegree
+
                 let result = LocationEngine.set(
                     latitude: sim.latitude,
-                    longitude: sim.longitude,
+                    longitude: pulseLongitude,
                     pairingPath: pairing.pairingPath,
                     deviceIP: TunnelConfig.targetIP
                 )
@@ -265,13 +270,13 @@ replace_required(
     "        manager.pausesLocationUpdatesAutomatically = false\n",
 )
 
-# Build marker for diagnostics / packaging verification.
 marker = root / "Locus/Support/MXWazeCompatibility.swift"
 marker.write_text(
     "import Foundation\n\n"
     "enum MXWazeCompatibility {\n"
-    "    static let build = \"Navigation Mode 1.0.11\"\n"
+    "    static let build = \"Navigation Mode 1.0.12\"\n"
     "    static let stationaryHeartbeatSeconds: TimeInterval = 1.0\n"
+    "    static let stationaryPulseMeters: Double = 0.65\n"
     "    static let drivingSampleSeconds: TimeInterval = 0.25\n"
     "}\n",
     encoding="utf-8",
