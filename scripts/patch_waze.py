@@ -12,6 +12,11 @@ def replace_required(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
+# Give this compatibility build its own in-app version as well as its IPA name.
+project = root / "project.yml"
+replace_required(project, '        MARKETING_VERSION: "1.0.2"\n', '        MARKETING_VERSION: "1.0.10"\n')
+replace_required(project, '        CURRENT_PROJECT_VERSION: "3"\n', '        CURRENT_PROJECT_VERSION: "10"\n')
+
 # Keep the DVT location session actively fed while MX Location is backgrounded
 # and a navigation app owns the foreground. This does not alter the selected
 # coordinate; it keeps the simulated fix fresh and the process runnable.
