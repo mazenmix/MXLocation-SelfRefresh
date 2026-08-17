@@ -111,7 +111,7 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$WORK/Payload/MXLocation.app/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$WORK/Payload/MXLocation.app/Info.plist"
 
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.0.11-Navigation-No-Renewal-unsigned.ipa"
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.0.12-Navigation-Waze-GPS-Fix-unsigned.ipa"
           (
             cd "$WORK"
             /usr/bin/zip -qry "$OUTPUT" Payload -x '._*' '.DS_Store' '__MACOSX/*'
@@ -128,9 +128,9 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.0.11-Navigation-No-Renewal
+          name: MX-Location-v1.0.12-Navigation-Waze-GPS-Fix
           path: |
-            MX-Location-v1.0.11-Navigation-No-Renewal-unsigned.ipa
-            MX-Location-v1.0.11-Navigation-No-Renewal-unsigned.ipa.sha256
+            MX-Location-v1.0.12-Navigation-Waze-GPS-Fix-unsigned.ipa
+            MX-Location-v1.0.12-Navigation-Waze-GPS-Fix-unsigned.ipa.sha256
             Locus-src/xcodebuild-navigation.log
           if-no-files-found: error
