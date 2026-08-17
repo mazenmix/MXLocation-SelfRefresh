@@ -1,0 +1,102 @@
+name: Build MX Location Waze Fix Guest
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mx-waze-guest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-waze-guest:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.2"
+
+      - name: Checkout pinned Locus source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global http.version HTTP/1.1
+          git clone https://github.com/ChrisMack32/Locus.git Locus-src
+          git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
+
+      - name: Apply MX + Waze fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_locus.py Locus-src
+          python3 scripts/patch_waze.py Locus-src
+          python3 scripts/clean_settings.py Locus-src
+          cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
+      - name: Install build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen ldid
+          curl -fL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
+          chmod +x dylibify
+
+      - name: Build Waze compatibility guest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Locus-src
+          xcodegen generate
+          xcodebuild \
+            -project Locus.xcodeproj \
+            -scheme Locus \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM='' \
+            build | tee xcodebuild-waze.log
+
+      - name: Prepare LiveContainer guest framework
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOCUS_APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$LOCUS_APP"
+          test -d "$LOCUS_APP"
+
+          mkdir -p WazeGuest
+          cp -R "$LOCUS_APP" WazeGuest/MXLocationApp.framework
+          FRAMEWORK="$PWD/WazeGuest/MXLocationApp.framework"
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$FRAMEWORK/Info.plist")
+
+          ./dylibify "$FRAMEWORK/$EXECUTABLE" "$FRAMEWORK/$EXECUTABLE.dylib"
+          rm "$FRAMEWORK/$EXECUTABLE"
+          mv "$FRAMEWORK/$EXECUTABLE.dylib" "$FRAMEWORK/$EXECUTABLE"
+          ldid -S"" "$FRAMEWORK/$EXECUTABLE"
+          cp scripts/LCAppInfo-MX.plist "$FRAMEWORK/LCAppInfo.plist"
+
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$FRAMEWORK/Info.plist"
+          /usr/bin/strings "$FRAMEWORK/$EXECUTABLE" | grep -F 'Waze Fix 1.0.10' >/dev/null
+
+      - name: Upload Waze guest
+        uses: actions/upload-artifact@v4
+        with:
+          name: MX-Location-WazeFix-v1.0.10-Guest
+          path: |
+            WazeGuest/MXLocationApp.framework
+            Locus-src/xcodebuild-waze.log
+          if-no-files-found: error
