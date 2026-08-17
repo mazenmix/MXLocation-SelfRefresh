@@ -1,26 +1,22 @@
-name: Build MX Location Minimal Theme Self Refresh IPA
+name: Build MX Location Guest Framework
 
 on:
   push:
     branches:
-      - main
-      - "codex/**"
-  pull_request:
-    branches:
-      - main
+      - "codex/mx-minimal-theme-selfrefresh"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: mx-minimal-theme-self-refresh-${{ github.event.pull_request.number || github.ref }}
+  group: mx-minimal-theme-framework-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     steps:
       - name: Checkout builder
@@ -31,65 +27,27 @@ jobs:
         with:
           xcode-version: "26.2"
 
-      - name: Checkout pinned sources
+      - name: Checkout pinned Locus
         shell: bash
         run: |
           set -euo pipefail
-
-          git config --global http.version HTTP/1.1
-          git config --global http.lowSpeedLimit 1000
-          git config --global http.lowSpeedTime 60
-
-          retry() {
-            local attempts=5
-            local delay=8
-            local n=1
-            until "$@"; do
-              if [ "$n" -ge "$attempts" ]; then
-                echo "Command failed after $attempts attempts: $*" >&2
-                return 1
-              fi
-              echo "Network attempt $n failed; retrying in ${delay}s..." >&2
-              n=$((n + 1))
-              sleep "$delay"
-              delay=$((delay * 2))
-            done
-          }
-
-          retry git clone --recursive https://github.com/LiveContainer/LiveContainer.git LiveContainer-src
-          git -C LiveContainer-src checkout fe4c0ea7607322f7a2c7aa3111d7082054b14c8b
-          retry git -C LiveContainer-src submodule update --init --recursive
-
-          retry git clone https://github.com/ChrisMack32/Locus.git Locus-src
+          git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-          mkdir SideStore-src
-          git -C SideStore-src init
-          git -C SideStore-src remote add origin https://github.com/LiveContainer/SideStore.git
-          retry git -C SideStore-src fetch --no-tags --depth=1 origin 8f0f8faed0529b35ad79e59576f129ad8a3d94fd
-          git -C SideStore-src checkout --detach FETCH_HEAD
-          git -C SideStore-src submodule sync --recursive
-          retry git -C SideStore-src submodule update --init --recursive --depth=1
-
-      - name: Apply MX Location integration
+      - name: Apply MX changes
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/patch_locus.py Locus-src
           python3 scripts/clean_settings.py Locus-src
           python3 scripts/minimal_theme.py Locus-src assets/MXAppIcon1024.png
-          python3 scripts/patch_livecontainer.py LiveContainer-src
-          python3 scripts/patch_sidestore.py SideStore-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
-          cp assets/MXAppIcon1024.png LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon1024.png
-          cp assets/MXAppIcon1024.png "LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIconDark1024.png"
-          cp assets/MXAppIcon1024.png "LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIconDark1024 1.png"
 
       - name: Install build dependencies
         shell: bash
         run: |
           set -euo pipefail
-          brew install xcodegen ldid xcbeautify
+          brew install xcodegen ldid
           curl -fL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
           chmod +x dylibify
 
@@ -111,52 +69,31 @@ jobs:
             DEVELOPMENT_TEAM='' \
             build | tee xcodebuild-locus.log
 
-      - name: Build host archive
+      - name: Convert guest to LiveContainer framework
         shell: bash
         run: |
           set -euo pipefail
-          cd LiveContainer-src
-          xcodebuild archive \
-            -archivePath archive \
-            -scheme LiveContainer \
-            -project LiveContainer.xcodeproj \
-            -sdk iphoneos \
-            -arch arm64 \
-            -configuration Release | tee xcodebuild-host.log
+          LOCUS_APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$LOCUS_APP"
+          test -d "$LOCUS_APP"
+          cp -R "$LOCUS_APP" MXLocationApp.framework
+          MX_EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' MXLocationApp.framework/Info.plist)
+          ./dylibify "MXLocationApp.framework/$MX_EXECUTABLE" "MXLocationApp.framework/$MX_EXECUTABLE.dylib"
+          rm "MXLocationApp.framework/$MX_EXECUTABLE"
+          mv "MXLocationApp.framework/$MX_EXECUTABLE.dylib" "MXLocationApp.framework/$MX_EXECUTABLE"
+          ldid -S"" "MXLocationApp.framework/$MX_EXECUTABLE"
+          cp scripts/LCAppInfo-MX.plist MXLocationApp.framework/LCAppInfo.plist
+          find MXLocationApp.framework -type d -name _CodeSignature -prune -exec rm -rf {} +
+          find MXLocationApp.framework -name embedded.mobileprovision -type f -delete
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent MXLocationApp.framework MXLocationApp-framework.zip
+          shasum -a 256 MXLocationApp-framework.zip > MXLocationApp-framework.zip.sha256
 
-      - name: Build patched renewal engine
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd SideStore-src
-          mkdir -p build/logs
-          set -o pipefail
-          NSUnbufferedIO=YES make -B build \
-            2>&1 | tee xcodebuild-sidestore.log | xcbeautify --renderer github-actions
-          make fakesign | tee -a xcodebuild-sidestore.log
-          make ipa | tee -a xcodebuild-sidestore.log
-          test -f SideStore.ipa
-
-      - name: Package integrated IPA
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/package_integrated.sh \
-            LiveContainer-src \
-            Locus-src \
-            "$PWD/SideStore-src/SideStore.ipa" \
-            "$PWD/dylibify" \
-            "$PWD/MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa"
-          shasum -a 256 MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa > MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa.sha256
-
-      - name: Upload IPA
+      - name: Upload framework
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-Minimal-Theme-SelfRefresh
+          name: MXLocationApp-Minimal-Theme
           path: |
-            MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa
-            MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa.sha256
+            MXLocationApp-framework.zip
+            MXLocationApp-framework.zip.sha256
             Locus-src/xcodebuild-locus.log
-            LiveContainer-src/xcodebuild-host.log
-            SideStore-src/xcodebuild-sidestore.log
           if-no-files-found: error
