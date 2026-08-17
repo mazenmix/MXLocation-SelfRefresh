@@ -1,4 +1,4 @@
-name: Build MX Location Waze Fix Guest
+name: Build MX Location Navigation Guest
 
 on:
   push:
@@ -10,11 +10,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: mx-waze-guest-${{ github.ref }}
+  group: mx-navigation-guest-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-waze-guest:
+  build-navigation-guest:
     runs-on: macos-15
     timeout-minutes: 45
 
@@ -35,7 +35,7 @@ jobs:
           git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-      - name: Apply MX + Waze fixes
+      - name: Apply MX + navigation fixes
         shell: bash
         run: |
           set -euo pipefail
@@ -52,7 +52,7 @@ jobs:
           curl -fL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
           chmod +x dylibify
 
-      - name: Build Waze compatibility guest
+      - name: Build navigation compatibility guest
         shell: bash
         run: |
           set -euo pipefail
@@ -68,7 +68,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_TEAM='' \
-            build | tee xcodebuild-waze.log
+            build | tee xcodebuild-navigation.log
 
       - name: Prepare LiveContainer guest framework
         shell: bash
@@ -78,9 +78,9 @@ jobs:
           test -n "$LOCUS_APP"
           test -d "$LOCUS_APP"
 
-          mkdir -p WazeGuest
-          cp -R "$LOCUS_APP" WazeGuest/MXLocationApp.framework
-          FRAMEWORK="$PWD/WazeGuest/MXLocationApp.framework"
+          mkdir -p NavigationGuest
+          cp -R "$LOCUS_APP" NavigationGuest/MXLocationApp.framework
+          FRAMEWORK="$PWD/NavigationGuest/MXLocationApp.framework"
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$FRAMEWORK/Info.plist")
 
           ./dylibify "$FRAMEWORK/$EXECUTABLE" "$FRAMEWORK/$EXECUTABLE.dylib"
@@ -89,15 +89,15 @@ jobs:
           ldid -S"" "$FRAMEWORK/$EXECUTABLE"
           cp scripts/LCAppInfo-MX.plist "$FRAMEWORK/LCAppInfo.plist"
 
-          /usr/libexec/PlistBuddy -c 'Add :MXWazeCompatibility string "Waze Fix 1.0.10"' "$FRAMEWORK/Info.plist"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$FRAMEWORK/Info.plist")" = "1.0.10"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :MXWazeCompatibility' "$FRAMEWORK/Info.plist")" = "Waze Fix 1.0.10"
+          /usr/libexec/PlistBuddy -c 'Add :MXNavigationCompatibility string "Navigation Mode 1.0.11"' "$FRAMEWORK/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$FRAMEWORK/Info.plist")" = "1.0.11"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :MXNavigationCompatibility' "$FRAMEWORK/Info.plist")" = "Navigation Mode 1.0.11"
 
-      - name: Upload Waze guest
+      - name: Upload navigation guest
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-WazeFix-v1.0.10-Guest
+          name: MX-Location-Navigation-v1.0.11-Guest
           path: |
-            WazeGuest/MXLocationApp.framework
-            Locus-src/xcodebuild-waze.log
+            NavigationGuest/MXLocationApp.framework
+            Locus-src/xcodebuild-navigation.log
           if-no-files-found: error
