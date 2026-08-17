@@ -8,25 +8,35 @@ root = Path(sys.argv[1]).resolve()
 def replace_required(path: Path, old: str, new: str) -> None:
     text = path.read_text(encoding="utf-8")
     if old not in text:
-        raise RuntimeError(f"Required Waze patch fragment not found in {path}: {old[:120]!r}")
+        raise RuntimeError(f"Required navigation patch fragment not found in {path}: {old[:120]!r}")
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
-# Give this compatibility build its own in-app version as well as its IPA name.
+# Navigation compatibility build identity.
 project = root / "project.yml"
-replace_required(project, '        MARKETING_VERSION: "1.0.2"\n', '        MARKETING_VERSION: "1.0.10"\n')
-replace_required(project, '        CURRENT_PROJECT_VERSION: "3"\n', '        CURRENT_PROJECT_VERSION: "10"\n')
+replace_required(project, '        MARKETING_VERSION: "1.0.2"\n', '        MARKETING_VERSION: "1.0.11"\n')
+replace_required(project, '        CURRENT_PROJECT_VERSION: "3"\n', '        CURRENT_PROJECT_VERSION: "11"\n')
 
-# Keep the DVT location session actively fed while MX Location is backgrounded
-# and a navigation app owns the foreground. This does not alter the selected
-# coordinate; it keeps the simulated fix fresh and the process runnable.
 spoof = root / "Locus/Engine/SpoofSession.swift"
 
+# Keep the DVT simulation process alive while a navigation app owns foreground.
 replace_required(
     spoof,
     "    private let locationKeeper = BackgroundKeepAlive()\n",
     "    private let locationKeeper = BackgroundKeepAlive()\n"
-    "    private let wazeKeepAlive = SilentAudioKeepAlive()\n",
+    "    private let navigationKeepAlive = SilentAudioKeepAlive()\n"
+    "    private var routeStreaming = false\n",
+)
+
+replace_required(
+    spoof,
+    "        routeTask?.cancel()\n"
+    "        routeTask = nil\n"
+    "        stopJoystick()\n",
+    "        routeTask?.cancel()\n"
+    "        routeTask = nil\n"
+    "        routeStreaming = false\n"
+    "        stopJoystick()\n",
 )
 
 replace_required(
@@ -34,7 +44,7 @@ replace_required(
     "            endBackground()\n"
     "            // Keep location updates running so the map puck / locate button\n",
     "            endBackground()\n"
-    "            wazeKeepAlive.stop()\n"
+    "            navigationKeepAlive.stop()\n"
     "            // Keep location updates running so the map puck / locate button\n",
 )
 
@@ -44,11 +54,153 @@ replace_required(
     "            locationKeeper.start()\n"
     "            startResend(pairing: pairing)\n",
     "            beginBackground()\n"
-    "            // Keep MX Location executing while Waze owns the foreground.\n"
-    "            // The audio is near-silent and mixes with other audio.\n"
-    "            wazeKeepAlive.start()\n"
+    "            navigationKeepAlive.start()\n"
     "            locationKeeper.start()\n"
     "            startResend(pairing: pairing)\n",
+)
+
+# Route playback is the important navigation path. Feed coordinates at a stable,
+# navigation-like cadence so third-party navigation apps can infer course and
+# speed from successive samples instead of receiving sparse jumps.
+old_route = '''    func followRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {
+        guard pairing.hasPairingFile, coordinates.count >= 2 else { return }
+        routeTask?.cancel()
+        stopJoystick()
+        let mode = travelMode
+        routeTask = Task { [weak self] in
+            guard let self else { return }
+            var previous = coordinates[0]
+            await MainActor.run {
+                self.apply(previous, pairing: pairing, markRecent: true)
+            }
+            for next in coordinates.dropFirst() {
+                if Task.isCancelled { break }
+                let distance = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+                    .distance(from: CLLocation(latitude: next.latitude, longitude: next.longitude))
+                var speed = mode.baseSpeed * Double.random(in: 0.88...1.12)
+                speed = max(0.8, speed)
+                let stepMeters: CLLocationDistance = min(12, max(4, speed * 0.5))
+                let steps = max(1, Int(ceil(distance / stepMeters)))
+                for i in 1...steps {
+                    if Task.isCancelled { break }
+                    let t = Double(i) / Double(steps)
+                    let coord = CLLocationCoordinate2D(
+                        latitude: previous.latitude + (next.latitude - previous.latitude) * t,
+                        longitude: previous.longitude + (next.longitude - previous.longitude) * t
+                    )
+                    let delay = stepMeters / speed
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    await MainActor.run {
+                        self.apply(coord, pairing: pairing, markRecent: false)
+                    }
+                }
+                previous = next
+            }
+        }
+    }
+'''
+
+new_route = '''    func followRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {
+        guard pairing.hasPairingFile, coordinates.count >= 2 else { return }
+        routeTask?.cancel()
+        stopJoystick()
+        let mode = travelMode
+        routeStreaming = true
+
+        routeTask = Task { [weak self] in
+            guard let self else { return }
+            var previous = coordinates[0]
+            await MainActor.run {
+                self.apply(previous, pairing: pairing, markRecent: true)
+            }
+
+            // Fixed motion cadence per travel mode. The physical displacement is
+            // derived from speed * dt, so speed/course remain inferable from the
+            // coordinate stream without fabricating extra GPS metadata.
+            let sampleInterval: TimeInterval
+            switch mode {
+            case .walk: sampleInterval = 0.50
+            case .run: sampleInterval = 0.40
+            case .cycle: sampleInterval = 0.35
+            case .drive: sampleInterval = 0.25
+            }
+
+            for next in coordinates.dropFirst() {
+                if Task.isCancelled { break }
+                let startLocation = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+                let endLocation = CLLocation(latitude: next.latitude, longitude: next.longitude)
+                let distance = startLocation.distance(from: endLocation)
+
+                var speed = mode.baseSpeed * Double.random(in: 0.94...1.06)
+                speed = max(0.8, speed)
+                let metersPerSample = max(0.35, speed * sampleInterval)
+                let steps = max(1, Int(ceil(distance / metersPerSample)))
+
+                for i in 1...steps {
+                    if Task.isCancelled { break }
+                    let t = Double(i) / Double(steps)
+                    let coord = CLLocationCoordinate2D(
+                        latitude: previous.latitude + (next.latitude - previous.latitude) * t,
+                        longitude: previous.longitude + (next.longitude - previous.longitude) * t
+                    )
+                    try? await Task.sleep(nanoseconds: UInt64(sampleInterval * 1_000_000_000))
+                    let accepted = await MainActor.run {
+                        self.applyMotionSample(coord, pairing: pairing)
+                    }
+                    if !accepted { break }
+                }
+                previous = next
+            }
+
+            await MainActor.run {
+                self.routeStreaming = false
+                self.routeTask = nil
+            }
+        }
+    }
+'''
+replace_required(spoof, old_route, new_route)
+
+# Motion samples should not restart timers/background sessions every 250-500 ms.
+# They only advance the already-established DVT session and update UI state.
+helper_anchor = '''    private func tickJoystick(pairing: PairingStore) {
+'''
+helper = '''    private func applyMotionSample(_ coordinate: CLLocationCoordinate2D, pairing: PairingStore) -> Bool {
+        let result = LocationEngine.set(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            pairingPath: pairing.pairingPath,
+            deviceIP: TunnelConfig.targetIP
+        )
+        switch result {
+        case .success:
+            simulated = coordinate
+            pin = coordinate
+            status = .active
+            lastError = nil
+            return true
+        case .failure(let error):
+            lastError = error.localizedDescription
+            status = .dropped(error.localizedDescription)
+            postDropNotification(error.localizedDescription)
+            return false
+        }
+    }
+
+    private func tickJoystick(pairing: PairingStore) {
+'''
+replace_required(spoof, helper_anchor, helper)
+
+# Joystick is another continuous-motion path; keep it on the same lightweight
+# stream instead of rebuilding session timers on every tick.
+replace_required(
+    spoof,
+    "        apply(next, pairing: pairing, markRecent: false)\n"
+    "    }\n\n"
+    "    private func startResend(pairing: PairingStore) {\n",
+    "        _ = applyMotionSample(next, pairing: pairing)\n"
+    "    }\n\n"
+    "    private func startResend(pairing: PairingStore) {\n",
 )
 
 old_resend = '''    private func startResend(pairing: PairingStore) {
@@ -70,11 +222,13 @@ old_resend = '''    private func startResend(pairing: PairingStore) {
 new_resend = '''    private func startResend(pairing: PairingStore) {
         resendTimer?.invalidate()
 
-        // Navigation compatibility heartbeat: refresh the DVT fix at a sub-second
-        // cadence and use the common run-loop mode so UI tracking does not pause it.
-        let timer = Timer(timeInterval: 0.75, repeats: true) { [weak self] _ in
+        // Stationary heartbeat keeps the DVT connection fresh. During route
+        // playback the motion stream itself is the heartbeat, so avoid duplicate
+        // stationary samples between movement samples.
+        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let sim = self.simulated, self.isSpoofing else { return }
+                guard !self.routeStreaming else { return }
                 let result = LocationEngine.set(
                     latitude: sim.latitude,
                     longitude: sim.longitude,
@@ -111,15 +265,16 @@ replace_required(
     "        manager.pausesLocationUpdatesAutomatically = false\n",
 )
 
-# Build marker so the generated framework can be identified from strings/logs.
+# Build marker for diagnostics / packaging verification.
 marker = root / "Locus/Support/MXWazeCompatibility.swift"
 marker.write_text(
     "import Foundation\n\n"
     "enum MXWazeCompatibility {\n"
-    "    static let build = \"Waze Fix 1.0.10\"\n"
-    "    static let heartbeatSeconds: TimeInterval = 0.75\n"
+    "    static let build = \"Navigation Mode 1.0.11\"\n"
+    "    static let stationaryHeartbeatSeconds: TimeInterval = 1.0\n"
+    "    static let drivingSampleSeconds: TimeInterval = 0.25\n"
     "}\n",
     encoding="utf-8",
 )
 
-print("Applied MX Location Waze compatibility patch at", root)
+print("Applied MX Location navigation compatibility patch at", root)
