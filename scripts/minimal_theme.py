@@ -35,8 +35,6 @@ app_file.write_text(app, encoding="utf-8")
 
 # -----------------------------------------------------------------------------
 # 2) Make the Map obey the same appearance and remove hard-coded black backing.
-#    Standard Apple Maps tiles follow the SwiftUI color scheme; the chrome and
-#    map background now switch with the selected appearance as well.
 # -----------------------------------------------------------------------------
 map_file = root / "Locus/Features/Map/MapHomeView.swift"
 map_text = map_file.read_text(encoding="utf-8")
@@ -54,7 +52,8 @@ if 'mxAppearance' not in map_text:
 map_style_line = "                .mapStyle(mapStyle)\n"
 if map_style_line not in map_text:
     raise RuntimeError("Unable to find Map mapStyle modifier")
-if '.environment(\\.colorScheme, mxAppearance == "light" ? .light : .dark)' not in map_text:
+map_environment = '.environment(\\.colorScheme, mxAppearance == "light" ? .light : .dark)'
+if map_environment not in map_text:
     map_text = map_text.replace(
         map_style_line,
         map_style_line + '                .environment(\\.colorScheme, mxAppearance == "light" ? .light : .dark)\n',
@@ -63,8 +62,10 @@ if '.environment(\\.colorScheme, mxAppearance == "light" ? .light : .dark)' not 
 
 map_text = map_text.replace(
     ".background(Color.black.ignoresSafeArea())",
-    ".background(Color(uiColor: .systemBackground).ignoresSafeArea())",
+    ".background(Color(uiColor: UIColor.systemBackground).ignoresSafeArea())",
 )
+if "import UIKit\n" not in map_text:
+    map_text = map_text.replace("import SwiftUI\n", "import SwiftUI\nimport UIKit\n", 1)
 map_file.write_text(map_text, encoding="utf-8")
 
 # Pairing sheet should also honor Light / Dark instead of forcing black.
@@ -72,14 +73,14 @@ pair_view = root / "Locus/Features/Settings/PairOnDeviceView.swift"
 pair_view_text = pair_view.read_text(encoding="utf-8")
 pair_view_text = pair_view_text.replace(
     ".background(Color.black.ignoresSafeArea())",
-    ".background(Color(uiColor: .systemBackground).ignoresSafeArea())",
+    ".background(Color(uiColor: UIColor.systemBackground).ignoresSafeArea())",
 )
+if "import UIKit\n" not in pair_view_text:
+    pair_view_text = pair_view_text.replace("import SwiftUI\n", "import SwiftUI\nimport UIKit\n", 1)
 pair_view.write_text(pair_view_text, encoding="utf-8")
 
 # -----------------------------------------------------------------------------
 # 3) Make the 6-digit pairing code impossible to miss in the local notification.
-#    The code is placed in both title and body. Existing time-sensitive delivery
-#    and permission request remain untouched.
 # -----------------------------------------------------------------------------
 pair_service = root / "Locus/Engine/PairOnDeviceService.swift"
 service = pair_service.read_text(encoding="utf-8")
@@ -87,7 +88,7 @@ notification_pattern = re.compile(
     r'content\.title = "(?:MX Location|Locus) pairing code"\n\s*content\.body = pin'
 )
 service, n = notification_pattern.subn(
-    'content.title = "MX Location pairing code: \\(pin)"\n        content.body = "Pairing code: \\(pin)"',
+    lambda _: 'content.title = "MX Location pairing code: \\(pin)"\n        content.body = "Pairing code: \\(pin)"',
     service,
     count=1,
 )
@@ -187,7 +188,7 @@ struct SettingsView: View {
     }
 }
 
-'''
+'''.replace('\\\\.', '\\.')
 settings_file.write_text(minimal_settings + places_tail, encoding="utf-8")
 
 # -----------------------------------------------------------------------------
