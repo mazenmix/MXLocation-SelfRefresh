@@ -89,8 +89,9 @@ jobs:
           ldid -S"" "$FRAMEWORK/$EXECUTABLE"
           cp scripts/LCAppInfo-MX.plist "$FRAMEWORK/LCAppInfo.plist"
 
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$FRAMEWORK/Info.plist"
-          /usr/bin/strings "$FRAMEWORK/$EXECUTABLE" | grep -F 'Waze Fix 1.0.10' >/dev/null
+          /usr/libexec/PlistBuddy -c 'Add :MXWazeCompatibility string "Waze Fix 1.0.10"' "$FRAMEWORK/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$FRAMEWORK/Info.plist")" = "1.0.10"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :MXWazeCompatibility' "$FRAMEWORK/Info.plist")" = "Waze Fix 1.0.10"
 
       - name: Upload Waze guest
         uses: actions/upload-artifact@v4
