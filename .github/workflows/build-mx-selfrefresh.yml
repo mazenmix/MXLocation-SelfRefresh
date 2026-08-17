@@ -1,4 +1,4 @@
-name: Build MX Location Self Refresh IPA
+name: Build MX Location Minimal Theme Self Refresh IPA
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mx-self-refresh-${{ github.event.pull_request.number || github.ref }}
+  group: mx-minimal-theme-self-refresh-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -36,8 +36,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # GitHub occasionally resets large HTTP/2 git pack transfers on hosted runners.
-          # Force HTTP/1.1 and retry network-sensitive operations instead of failing the whole build.
           git config --global http.version HTTP/1.1
           git config --global http.lowSpeedLimit 1000
           git config --global http.lowSpeedTime 60
@@ -79,6 +77,7 @@ jobs:
           set -euo pipefail
           python3 scripts/patch_locus.py Locus-src
           python3 scripts/clean_settings.py Locus-src
+          python3 scripts/minimal_theme.py Locus-src assets/MXAppIcon1024.png
           python3 scripts/patch_livecontainer.py LiveContainer-src
           python3 scripts/patch_sidestore.py SideStore-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
@@ -147,16 +146,16 @@ jobs:
             Locus-src \
             "$PWD/SideStore-src/SideStore.ipa" \
             "$PWD/dylibify" \
-            "$PWD/MX-Location-Self-Refresh-v1.0.8-unsigned.ipa"
-          shasum -a 256 MX-Location-Self-Refresh-v1.0.8-unsigned.ipa > MX-Location-Self-Refresh-v1.0.8-unsigned.ipa.sha256
+            "$PWD/MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa"
+          shasum -a 256 MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa > MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa.sha256
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-Self-Refresh
+          name: MX-Location-Minimal-Theme-SelfRefresh
           path: |
-            MX-Location-Self-Refresh-v1.0.8-unsigned.ipa
-            MX-Location-Self-Refresh-v1.0.8-unsigned.ipa.sha256
+            MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa
+            MX-Location-Minimal-Theme-SelfRefresh-unsigned.ipa.sha256
             Locus-src/xcodebuild-locus.log
             LiveContainer-src/xcodebuild-host.log
             SideStore-src/xcodebuild-sidestore.log
