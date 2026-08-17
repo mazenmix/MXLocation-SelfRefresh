@@ -12,10 +12,9 @@ def replace_required(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
-# Waze is much more sensitive than Apple Maps to gaps in Core Location delivery.
-# Keep the DVT session actively fed while MX Location is backgrounded and Waze is
-# in the foreground. This does not alter the selected coordinate; it only keeps
-# the simulated fix fresh and the process runnable.
+# Keep the DVT location session actively fed while MX Location is backgrounded
+# and a navigation app owns the foreground. This does not alter the selected
+# coordinate; it keeps the simulated fix fresh and the process runnable.
 spoof = root / "Locus/Engine/SpoofSession.swift"
 
 replace_required(
@@ -66,9 +65,8 @@ old_resend = '''    private func startResend(pairing: PairingStore) {
 new_resend = '''    private func startResend(pairing: PairingStore) {
         resendTimer?.invalidate()
 
-        // Waze compatibility heartbeat: refresh the DVT fix at navigation cadence
-        // instead of allowing the simulated sample to age for several seconds.
-        // Add the timer in .common so map gestures / tracking modes do not pause it.
+        // Navigation compatibility heartbeat: refresh the DVT fix at a sub-second
+        // cadence and use the common run-loop mode so UI tracking does not pause it.
         let timer = Timer(timeInterval: 0.75, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let sim = self.simulated, self.isSpoofing else { return }
@@ -96,9 +94,7 @@ replace_required(
     "        healthTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in\n",
 )
 
-# Ask Core Location for a navigation-grade stream in the keeper session. Waze
-# itself still receives location from locationd; this keeps iOS's location
-# pipeline active at the cadence expected by turn-by-turn navigation apps.
+# Keep Core Location active in a navigation-grade configuration while spoofing.
 keeper = root / "Locus/Engine/BackgroundKeepAlive.swift"
 replace_required(
     keeper,
@@ -110,14 +106,14 @@ replace_required(
     "        manager.pausesLocationUpdatesAutomatically = false\n",
 )
 
-# Build marker so the resulting framework can be identified from strings/logs.
+# Build marker so the generated framework can be identified from strings/logs.
 marker = root / "Locus/Support/MXWazeCompatibility.swift"
 marker.write_text(
-    '''import Foundation\n\n"
+    "import Foundation\n\n"
     "enum MXWazeCompatibility {\n"
     "    static let build = \"Waze Fix 1.0.10\"\n"
     "    static let heartbeatSeconds: TimeInterval = 0.75\n"
-    "}\n''',
+    "}\n",
     encoding="utf-8",
 )
 
