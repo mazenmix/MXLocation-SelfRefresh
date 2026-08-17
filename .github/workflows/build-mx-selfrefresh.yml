@@ -59,12 +59,13 @@ jobs:
           retry git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-      - name: Apply MX Location direct navigation build
+      - name: Apply MX Location Waze RoadLock build
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/patch_locus_direct.py Locus-src
           python3 scripts/patch_waze.py Locus-src
+          python3 scripts/patch_waze_roadlock.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Install build dependency
@@ -111,7 +112,7 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$WORK/Payload/MXLocation.app/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$WORK/Payload/MXLocation.app/Info.plist"
 
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.0.12-Navigation-Waze-GPS-Fix-unsigned.ipa"
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.0.13-Waze-RoadLock-unsigned.ipa"
           (
             cd "$WORK"
             /usr/bin/zip -qry "$OUTPUT" Payload -x '._*' '.DS_Store' '__MACOSX/*'
@@ -128,9 +129,9 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.0.12-Navigation-Waze-GPS-Fix
+          name: MX-Location-v1.0.13-Waze-RoadLock
           path: |
-            MX-Location-v1.0.12-Navigation-Waze-GPS-Fix-unsigned.ipa
-            MX-Location-v1.0.12-Navigation-Waze-GPS-Fix-unsigned.ipa.sha256
+            MX-Location-v1.0.13-Waze-RoadLock-unsigned.ipa
+            MX-Location-v1.0.13-Waze-RoadLock-unsigned.ipa.sha256
             Locus-src/xcodebuild-navigation.log
           if-no-files-found: error
