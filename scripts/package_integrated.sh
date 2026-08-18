@@ -50,8 +50,8 @@ APP="$WORK_DIR/Payload/MXLocationHost.app"
 
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$APP/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.8' "$APP/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.8' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.9' "$APP/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.9' "$APP/Info.plist"
 
 # Bundle MX Location as a built-in guest framework.
 MX_FRAMEWORK="$APP/Frameworks/MXLocationApp.framework"
@@ -86,12 +86,7 @@ sed -i '' 's/9SideStore20RefreshAllAppsIntentV/16SideStoreSupport20RefreshAllApp
 sed -i '' 's/9SideStore26RefreshAllAppsWidgetIntentV/16SideStoreSupport26RefreshAllAppsWidgetIntentV/g' "$APP/Metadata.appintents/extract.actionsdata"
 
 # A free Apple developer profile permits only three active app/extension slots.
-# The previous package contained the host plus four extensions, so Sideloadly
-# could leave an extension without embedded.mobileprovision and the integrated
-# signing manager then failed during database start-up. Only LiveProcess is
-# required by MX Location's renewal bridge; keep it and remove the unrelated
-# launcher/share/widget extensions. The resulting install consumes two slots:
-# MX Location + LiveProcess.
+# Keep only LiveProcess, matching the uploaded MX Location build layout.
 rm -rf \
   "$APP/PlugIns/LaunchAppExtension.appex" \
   "$APP/PlugIns/ShareExtension.appex" \
@@ -101,8 +96,8 @@ rm -rf \
 LIVE_PROCESS="$APP/PlugIns/LiveProcess.appex"
 test -d "$LIVE_PROCESS"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.kdt.livecontainer.LiveProcess' "$LIVE_PROCESS/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.8' "$LIVE_PROCESS/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.8' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 3.8.9' "$LIVE_PROCESS/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3.8.9' "$LIVE_PROCESS/Info.plist"
 
 # Remove stale signatures. The output intentionally remains unsigned so the
 # user's on-device signing identity and app-group entitlements can be applied.
