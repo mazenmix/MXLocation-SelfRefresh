@@ -1,26 +1,22 @@
-name: Build MX Location Profiles + Notifications IPA
+name: Build MX Location Guest Framework
 
 on:
   push:
     branches:
-      - main
       - "codex/**"
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: mx-profiles-notifications-${{ github.event.pull_request.number || github.ref }}
+  group: mx-guest-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-guest:
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     steps:
       - name: Checkout builder
@@ -31,42 +27,27 @@ jobs:
         with:
           xcode-version: "26.2"
 
-      - name: Checkout pinned sources
+      - name: Checkout pinned Locus source
         shell: bash
         run: |
           set -euo pipefail
-          git clone --recursive https://github.com/LiveContainer/LiveContainer.git LiveContainer-src
-          git -C LiveContainer-src checkout fe4c0ea7607322f7a2c7aa3111d7082054b14c8b
-          git -C LiveContainer-src submodule update --init --recursive
-
           git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-          git clone --no-checkout https://github.com/LiveContainer/SideStore.git SideStore-src
-          git -C SideStore-src fetch origin 8f0f8faed0529b35ad79e59576f129ad8a3d94fd --depth=1
-          git -C SideStore-src checkout --detach FETCH_HEAD
-          git -C SideStore-src submodule sync --recursive
-          git -C SideStore-src submodule update --init --recursive
-
-      - name: Apply MX Location integration and feature patch
+      - name: Apply MX Location patches
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/patch_locus.py Locus-src
           python3 scripts/clean_settings.py Locus-src
           python3 scripts/patch_locus_profiles_notifications.py Locus-src
-          python3 scripts/patch_livecontainer.py LiveContainer-src
-          python3 scripts/patch_sidestore.py SideStore-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
-          cp assets/MXAppIcon1024.png LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon1024.png
-          cp assets/MXAppIcon1024.png "LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIconDark1024.png"
-          cp assets/MXAppIcon1024.png "LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIconDark1024 1.png"
 
       - name: Install build dependencies
         shell: bash
         run: |
           set -euo pipefail
-          brew install xcodegen ldid xcbeautify
+          brew install xcodegen ldid
           curl -fL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
           chmod +x dylibify
 
@@ -88,52 +69,32 @@ jobs:
             DEVELOPMENT_TEAM='' \
             build | tee xcodebuild-locus.log
 
-      - name: Build host archive
+      - name: Convert guest to LiveContainer framework
         shell: bash
         run: |
           set -euo pipefail
-          cd LiveContainer-src
-          xcodebuild archive \
-            -archivePath archive \
-            -scheme LiveContainer \
-            -project LiveContainer.xcodeproj \
-            -sdk iphoneos \
-            -arch arm64 \
-            -configuration Release | tee xcodebuild-host.log
+          LOCUS_APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$LOCUS_APP"
+          mkdir -p out
+          cp -R "$LOCUS_APP" out/MXLocationApp.framework
+          MX_EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' out/MXLocationApp.framework/Info.plist)
+          ./dylibify "out/MXLocationApp.framework/$MX_EXECUTABLE" "out/MXLocationApp.framework/$MX_EXECUTABLE.dylib"
+          rm "out/MXLocationApp.framework/$MX_EXECUTABLE"
+          mv "out/MXLocationApp.framework/$MX_EXECUTABLE.dylib" "out/MXLocationApp.framework/$MX_EXECUTABLE"
+          ldid -S"" "out/MXLocationApp.framework/$MX_EXECUTABLE"
+          cp scripts/LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist 2>/dev/null || cp LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist 2>/dev/null || cp scripts/../scripts/LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' out/MXLocationApp.framework/Info.plist
+          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Pairing Code'
+          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Stopped'
+          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'Save Current as Profile'
+          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MazenmiX'
+          ditto -c -k --sequesterRsrc --keepParent out/MXLocationApp.framework MXLocationApp-framework-v1.0.3.zip
 
-      - name: Build patched renewal engine
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd SideStore-src
-          mkdir -p build/logs
-          set -o pipefail
-          NSUnbufferedIO=YES make -B build \
-            2>&1 | tee xcodebuild-sidestore.log | xcbeautify --renderer github-actions
-          make fakesign | tee -a xcodebuild-sidestore.log
-          make ipa | tee -a xcodebuild-sidestore.log
-          test -f SideStore.ipa
-
-      - name: Package integrated IPA
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/package_integrated.sh \
-            LiveContainer-src \
-            Locus-src \
-            "$PWD/SideStore-src/SideStore.ipa" \
-            "$PWD/dylibify" \
-            "$PWD/MX-Location-v1.0.3-Profiles-Notifications-SelfRefresh-unsigned.ipa"
-          shasum -a 256 MX-Location-v1.0.3-Profiles-Notifications-SelfRefresh-unsigned.ipa > MX-Location-v1.0.3-Profiles-Notifications-SelfRefresh-unsigned.ipa.sha256
-
-      - name: Upload IPA
+      - name: Upload guest framework
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.0.3-Profiles-Notifications-SelfRefresh
+          name: MXLocationApp-framework-v1.0.3
           path: |
-            MX-Location-v1.0.3-Profiles-Notifications-SelfRefresh-unsigned.ipa
-            MX-Location-v1.0.3-Profiles-Notifications-SelfRefresh-unsigned.ipa.sha256
+            MXLocationApp-framework-v1.0.3.zip
             Locus-src/xcodebuild-locus.log
-            LiveContainer-src/xcodebuild-host.log
-            SideStore-src/xcodebuild-sidestore.log
           if-no-files-found: error
