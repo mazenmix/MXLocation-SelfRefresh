@@ -90,7 +90,7 @@ jobs:
           strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Pairing Code'
           strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Stopped'
           strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'Save Current as Profile'
-          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MazenmiX'
+          grep -F 'Text("MazenmiX")' Locus-src/Locus/Features/Settings/SettingsView.swift
           ditto -c -k --sequesterRsrc --keepParent out/MXLocationApp.framework MXLocationApp-framework-v1.0.3.zip
 
       - name: Upload guest framework
