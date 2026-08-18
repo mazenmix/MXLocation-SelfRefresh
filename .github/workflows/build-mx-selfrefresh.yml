@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - "codex/**"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: mx-guest-${{ github.ref }}
+  group: mx-guest-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -82,7 +85,7 @@ jobs:
           rm "out/MXLocationApp.framework/$MX_EXECUTABLE"
           mv "out/MXLocationApp.framework/$MX_EXECUTABLE.dylib" "out/MXLocationApp.framework/$MX_EXECUTABLE"
           ldid -S"" "out/MXLocationApp.framework/$MX_EXECUTABLE"
-          cp scripts/LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist 2>/dev/null || cp LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist 2>/dev/null || cp scripts/../scripts/LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist
+          cp scripts/LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' out/MXLocationApp.framework/Info.plist
           strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Pairing Code'
           strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Stopped'
