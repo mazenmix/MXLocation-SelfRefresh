@@ -1,9 +1,8 @@
-name: Build MX Location Navigation IPA
+name: Build MX Location Guest Framework
 
 on:
   push:
     branches:
-      - main
       - "codex/**"
   pull_request:
     branches:
@@ -14,11 +13,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: mx-navigation-direct-${{ github.event.pull_request.number || github.ref }}
+  group: mx-guest-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-guest:
     runs-on: macos-15
     timeout-minutes: 60
 
@@ -35,45 +34,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          git config --global http.version HTTP/1.1
-          git config --global http.lowSpeedLimit 1000
-          git config --global http.lowSpeedTime 60
-
-          retry() {
-            local attempts=5
-            local delay=8
-            local n=1
-            until "$@"; do
-              if [ "$n" -ge "$attempts" ]; then
-                echo "Command failed after $attempts attempts: $*" >&2
-                return 1
-              fi
-              echo "Network attempt $n failed; retrying in ${delay}s..." >&2
-              n=$((n + 1))
-              sleep "$delay"
-              delay=$((delay * 2))
-            done
-          }
-
-          retry git clone https://github.com/ChrisMack32/Locus.git Locus-src
+          git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-      - name: Apply MX Location direct navigation build
+      - name: Apply MX Location patches
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/patch_locus_direct.py Locus-src
-          python3 scripts/patch_waze.py Locus-src
+          python3 scripts/patch_locus.py Locus-src
+          python3 scripts/clean_settings.py Locus-src
+          python3 scripts/patch_locus_profiles_notifications.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
-      - name: Install build dependency
+      - name: Install build dependencies
         shell: bash
         run: |
           set -euo pipefail
-          brew install xcodegen
+          brew install xcodegen ldid
+          curl -fL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
+          chmod +x dylibify
 
-      - name: Build unsigned MX Location
+      - name: Build MX Location guest
         shell: bash
         run: |
           set -euo pipefail
@@ -89,48 +70,34 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_TEAM='' \
-            build | tee xcodebuild-navigation.log
+            build | tee xcodebuild-locus.log
 
-      - name: Package direct IPA
+      - name: Convert guest to LiveContainer framework
         shell: bash
         run: |
           set -euo pipefail
+          LOCUS_APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$LOCUS_APP"
+          mkdir -p out
+          cp -R "$LOCUS_APP" out/MXLocationApp.framework
+          MX_EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' out/MXLocationApp.framework/Info.plist)
+          ./dylibify "out/MXLocationApp.framework/$MX_EXECUTABLE" "out/MXLocationApp.framework/$MX_EXECUTABLE.dylib"
+          rm "out/MXLocationApp.framework/$MX_EXECUTABLE"
+          mv "out/MXLocationApp.framework/$MX_EXECUTABLE.dylib" "out/MXLocationApp.framework/$MX_EXECUTABLE"
+          ldid -S"" "out/MXLocationApp.framework/$MX_EXECUTABLE"
+          cp scripts/LCAppInfo-MX.plist out/MXLocationApp.framework/LCAppInfo.plist
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' out/MXLocationApp.framework/Info.plist
+          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Pairing Code'
+          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'MX Location Stopped'
+          strings "out/MXLocationApp.framework/$MX_EXECUTABLE" | grep -F 'Save Current as Profile'
+          grep -F 'Text("MazenmiX")' Locus-src/Locus/Features/Settings/SettingsView.swift
+          ditto -c -k --sequesterRsrc --keepParent out/MXLocationApp.framework MXLocationApp-framework-v1.0.3.zip
 
-          APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
-          test -n "$APP"
-          test -d "$APP"
-
-          WORK="$RUNNER_TEMP/mx-location-package"
-          rm -rf "$WORK"
-          mkdir -p "$WORK/Payload"
-          cp -R "$APP" "$WORK/Payload/MXLocation.app"
-
-          find "$WORK/Payload/MXLocation.app" -type d -name _CodeSignature -prune -exec rm -rf {} + || true
-          find "$WORK/Payload/MXLocation.app" -name embedded.mobileprovision -type f -delete || true
-
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$WORK/Payload/MXLocation.app/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$WORK/Payload/MXLocation.app/Info.plist"
-
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.0.11-Navigation-No-Renewal-unsigned.ipa"
-          (
-            cd "$WORK"
-            /usr/bin/zip -qry "$OUTPUT" Payload -x '._*' '.DS_Store' '__MACOSX/*'
-          )
-
-          test -f "$OUTPUT"
-          if unzip -l "$OUTPUT" | grep -Eiq 'SideStore|LiveContainer|SideStoreApp\.framework'; then
-            echo "Unexpected renewal/host component found in direct IPA" >&2
-            exit 1
-          fi
-
-          shasum -a 256 "$OUTPUT" > "$OUTPUT.sha256"
-
-      - name: Upload IPA
+      - name: Upload guest framework
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.0.11-Navigation-No-Renewal
+          name: MXLocationApp-framework-v1.0.3
           path: |
-            MX-Location-v1.0.11-Navigation-No-Renewal-unsigned.ipa
-            MX-Location-v1.0.11-Navigation-No-Renewal-unsigned.ipa.sha256
-            Locus-src/xcodebuild-navigation.log
+            MXLocationApp-framework-v1.0.3.zip
+            Locus-src/xcodebuild-locus.log
           if-no-files-found: error
