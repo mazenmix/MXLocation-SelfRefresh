@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: mx-self-refresh-${{ github.event.pull_request.number || github.ref }}
@@ -162,3 +162,21 @@ jobs:
             LiveContainer-src/xcodebuild-host.log
             SideStore-src/xcodebuild-sidestore.log
           if-no-files-found: error
+
+      - name: Publish counter-fixed IPA to branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/codex/fix-counter'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build-output
+          cp MX-Location-Self-Refresh-v1.0.8-unsigned.ipa build-output/MX-Location-v1.0.3-Counter-Fix-unsigned.ipa
+          shasum -a 256 build-output/MX-Location-v1.0.3-Counter-Fix-unsigned.ipa > build-output/MX-Location-v1.0.3-Counter-Fix-unsigned.ipa.sha256
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-output/MX-Location-v1.0.3-Counter-Fix-unsigned.ipa build-output/MX-Location-v1.0.3-Counter-Fix-unsigned.ipa.sha256
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Publish counter-fixed MX Location IPA"
+          git push origin HEAD:codex/fix-counter
