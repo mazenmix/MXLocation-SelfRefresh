@@ -80,6 +80,7 @@ jobs:
           python3 scripts/patch_locus.py Locus-src
           python3 scripts/clean_settings.py Locus-src
           python3 scripts/patch_livecontainer.py LiveContainer-src
+          python3 scripts/fix_counter.py LiveContainer-src
           python3 scripts/patch_sidestore.py SideStore-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           cp assets/MXAppIcon1024.png LiveContainer-src/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon1024.png
