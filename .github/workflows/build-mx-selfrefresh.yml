@@ -64,7 +64,26 @@ jobs:
           python3 scripts/patch_quick_places.py Locus-src
           python3 scripts/patch_travel_suite.py Locus-src
           python3 scripts/patch_waze.py Locus-src
-          cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
+          # Build the user's black/white MX icon as a NEW asset name so iOS does
+          # not keep resolving the previous Locus pin icon from its icon cache.
+          ASSET_ROOT="Locus-src/Locus/Resources/Assets.xcassets"
+          rm -rf "$ASSET_ROOT/MXAppIcon.appiconset"
+          mkdir -p "$ASSET_ROOT/MXAppIcon.appiconset"
+          swift scripts/render_user_mx_icon.swift "$ASSET_ROOT/MXAppIcon.appiconset/MXAppIcon.png"
+          cat > "$ASSET_ROOT/MXAppIcon.appiconset/Contents.json" <<'JSON'
+          {
+            "images" : [
+              {
+                "filename" : "MXAppIcon.png",
+                "idiom" : "universal",
+                "platform" : "ios",
+                "size" : "1024x1024"
+              }
+            ],
+            "info" : { "author" : "xcode", "version" : 1 }
+          }
+          JSON
 
       - name: Install build dependency
         shell: bash
@@ -85,6 +104,9 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
+            ASSETCATALOG_COMPILER_APPICON_NAME=MXAppIcon \
+            MARKETING_VERSION=1.1.1 \
+            CURRENT_PROJECT_VERSION=111 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_TEAM='' \
@@ -103,9 +125,22 @@ jobs:
           cp -R "$APP" "$WORK/Payload/MXLocation.app"
           find "$WORK/Payload/MXLocation.app" -type d -name _CodeSignature -prune -exec rm -rf {} + || true
           find "$WORK/Payload/MXLocation.app" -name embedded.mobileprovision -type f -delete || true
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$WORK/Payload/MXLocation.app/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$WORK/Payload/MXLocation.app/Info.plist"
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa"
+
+          PLIST="$WORK/Payload/MXLocation.app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.1.1' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 111' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName MXAppIcon' "$PLIST"
+          if /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName' "$PLIST" >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c 'Set :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName MXAppIcon' "$PLIST"
+          fi
+
+          echo "Primary icon name: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$PLIST")"
+          echo "Version: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST") ($( /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST" ))"
+          find "$WORK/Payload/MXLocation.app" -maxdepth 1 -type f -iname '*icon*.png' -print
+
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.1.1-Travel-Dating-Suite-MXIconFix-unsigned.ipa"
           (
             cd "$WORK"
             /usr/bin/zip -qry "$OUTPUT" Payload -x '._*' '.DS_Store' '__MACOSX/*'
@@ -120,9 +155,9 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.1.0-Travel-Dating-Suite
+          name: MX-Location-v1.1.1-Travel-Dating-Suite-MXIconFix
           path: |
-            MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa
-            MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa.sha256
+            MX-Location-v1.1.1-Travel-Dating-Suite-MXIconFix-unsigned.ipa
+            MX-Location-v1.1.1-Travel-Dating-Suite-MXIconFix-unsigned.ipa.sha256
             Locus-src/xcodebuild-navigation.log
           if-no-files-found: error
