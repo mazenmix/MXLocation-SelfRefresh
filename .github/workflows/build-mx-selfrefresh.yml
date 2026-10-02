@@ -64,7 +64,32 @@ jobs:
           python3 scripts/patch_quick_places.py Locus-src
           python3 scripts/patch_travel_suite.py Locus-src
           python3 scripts/patch_waze.py Locus-src
+
+          # Locus ships both an AppIcon.icon (Icon Composer package) and an
+          # AppIcon.appiconset. The Icon Composer package was winning, which is
+          # why iOS kept showing the old coloured map-pin icon. Remove that
+          # package from the generated project so MX's AppIcon.appiconset is the
+          # single launcher-icon source.
+          rm -rf Locus-src/AppIcon.icon
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Locus-src/project.yml')
+          s = p.read_text()
+          s = s.replace('      - path: AppIcon.icon\n', '')
+          s = s.replace('        MARKETING_VERSION: "1.0.2"', '        MARKETING_VERSION: "1.1.1"')
+          s = s.replace('        CURRENT_PROJECT_VERSION: "3"', '        CURRENT_PROJECT_VERSION: "4"')
+          p.write_text(s)
+          PY
+
+          # Use MX's black/white 1024px artwork as the only AppIcon asset.
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
+          # Fail early if the old Icon Composer source can still be referenced.
+          if grep -q 'path: AppIcon.icon' Locus-src/project.yml; then
+            echo 'Old AppIcon.icon is still referenced' >&2
+            exit 1
+          fi
+          test -f Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Install build dependency
         shell: bash
@@ -105,7 +130,14 @@ jobs:
           find "$WORK/Payload/MXLocation.app" -name embedded.mobileprovision -type f -delete || true
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$WORK/Payload/MXLocation.app/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$WORK/Payload/MXLocation.app/Info.plist"
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.1.1' "$WORK/Payload/MXLocation.app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 4' "$WORK/Payload/MXLocation.app/Info.plist"
+
+          # Verify the asset compiler emitted launcher PNGs into the app bundle.
+          find "$WORK/Payload/MXLocation.app" -maxdepth 1 -type f \( -name 'AppIcon*.png' -o -name 'Assets.car' \) -print | tee "$GITHUB_WORKSPACE/icon-files.txt"
+          test -s "$GITHUB_WORKSPACE/icon-files.txt"
+
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.1.1-Travel-Dating-Suite-MXIcon-unsigned.ipa"
           (
             cd "$WORK"
             /usr/bin/zip -qry "$OUTPUT" Payload -x '._*' '.DS_Store' '__MACOSX/*'
@@ -120,9 +152,10 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.1.0-Travel-Dating-Suite
+          name: MX-Location-v1.1.1-Travel-Dating-Suite-MXIcon
           path: |
-            MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa
-            MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa.sha256
+            MX-Location-v1.1.1-Travel-Dating-Suite-MXIcon-unsigned.ipa
+            MX-Location-v1.1.1-Travel-Dating-Suite-MXIcon-unsigned.ipa.sha256
             Locus-src/xcodebuild-navigation.log
+            icon-files.txt
           if-no-files-found: error
