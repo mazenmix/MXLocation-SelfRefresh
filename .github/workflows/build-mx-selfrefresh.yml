@@ -1,4 +1,4 @@
-name: Build MX Location Navigation IPA
+name: Build MX Location Travel Dating Suite
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mx-navigation-direct-${{ github.event.pull_request.number || github.ref }}
+  group: mx-travel-suite-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,11 +35,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           git config --global http.version HTTP/1.1
           git config --global http.lowSpeedLimit 1000
           git config --global http.lowSpeedTime 60
-
           retry() {
             local attempts=5
             local delay=8
@@ -55,16 +53,16 @@ jobs:
               delay=$((delay * 2))
             done
           }
-
           retry git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
-      - name: Apply MX Location direct navigation build
+      - name: Apply MX Location travel and dating build
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/patch_locus_direct.py Locus-src
           python3 scripts/patch_quick_places.py Locus-src
+          python3 scripts/patch_travel_suite.py Locus-src
           python3 scripts/patch_waze.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
@@ -96,42 +94,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
           test -n "$APP"
           test -d "$APP"
-
           WORK="$RUNNER_TEMP/mx-location-package"
           rm -rf "$WORK"
           mkdir -p "$WORK/Payload"
           cp -R "$APP" "$WORK/Payload/MXLocation.app"
-
           find "$WORK/Payload/MXLocation.app" -type d -name _CodeSignature -prune -exec rm -rf {} + || true
           find "$WORK/Payload/MXLocation.app" -name embedded.mobileprovision -type f -delete || true
-
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$WORK/Payload/MXLocation.app/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$WORK/Payload/MXLocation.app/Info.plist"
-
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.0.12-Quick-Places-unsigned.ipa"
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa"
           (
             cd "$WORK"
             /usr/bin/zip -qry "$OUTPUT" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-
           test -f "$OUTPUT"
           if unzip -l "$OUTPUT" | grep -Eiq 'SideStore|LiveContainer|SideStoreApp\.framework'; then
             echo "Unexpected renewal/host component found in direct IPA" >&2
             exit 1
           fi
-
           shasum -a 256 "$OUTPUT" > "$OUTPUT.sha256"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.0.12-Quick-Places
+          name: MX-Location-v1.1.0-Travel-Dating-Suite
           path: |
-            MX-Location-v1.0.12-Quick-Places-unsigned.ipa
-            MX-Location-v1.0.12-Quick-Places-unsigned.ipa.sha256
+            MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa
+            MX-Location-v1.1.0-Travel-Dating-Suite-unsigned.ipa.sha256
             Locus-src/xcodebuild-navigation.log
           if-no-files-found: error
