@@ -71,6 +71,7 @@ jobs:
           cp templates/MXTravelData.swift Locus-src/Locus/Features/Map/MXTravelData.swift
           cp templates/MXTravelSuiteView.swift Locus-src/Locus/Features/Map/MXTravelSuiteView.swift
           cp templates/MXLocationInfoCard.swift Locus-src/Locus/Features/Map/MXLocationInfoCard.swift
+          python3 scripts/fix_travel_suite_templates.py Locus-src/Locus/Features/Map/MXTravelSuiteView.swift
 
           python3 scripts/install_user_mx_icon.py assets/MXAppIcon1024.png
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
