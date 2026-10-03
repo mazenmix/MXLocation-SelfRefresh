@@ -44,6 +44,8 @@ struct MXSavedView: View {
     @Binding var selectedTab: Int
 
     @State private var segment = 0
+    @State private var placeToRename: SavedPlace?
+    @State private var renameText = ""
 
     private var places: [SavedPlace] {
         segment == 0 ? session.favorites : session.recents
@@ -92,6 +94,24 @@ struct MXSavedView: View {
             }
             .navigationTitle("Saved")
             .navigationBarTitleDisplayMode(.large)
+            .alert("Edit Favorite Name", isPresented: Binding(
+                get: { placeToRename != nil },
+                set: { if !$0 { placeToRename = nil } }
+            )) {
+                TextField("Place name", text: $renameText)
+                Button("Cancel", role: .cancel) {
+                    placeToRename = nil
+                }
+                Button("Save") {
+                    let cleanName = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let place = placeToRename, !cleanName.isEmpty {
+                        session.renameFavorite(place, to: cleanName)
+                    }
+                    placeToRename = nil
+                }
+            } message: {
+                Text("Give this favorite a short, clear name.")
+            }
         }
     }
 
@@ -124,6 +144,13 @@ struct MXSavedView: View {
 
                 Menu {
                     if segment == 0 {
+                        Button {
+                            placeToRename = place
+                            renameText = place.name
+                        } label: {
+                            Label("Edit Name", systemImage: "pencil")
+                        }
+
                         Button(role: .destructive) {
                             session.removeFavorite(place)
                         } label: {
