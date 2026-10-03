@@ -56,12 +56,19 @@ jobs:
           retry git clone https://github.com/ChrisMack32/Locus.git Locus-src
           git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
 
+      - name: Render exact MX icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift scripts/render_user_mx_icon.swift assets/MXAppIcon1024.png
+          test -s assets/MXAppIcon1024.png
+
       - name: Apply MX Location clean build
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/patch_locus_direct.py Locus-src
-          python3 scripts/patch_clean_ui.py Locus-src
+          python3 scripts/patch_clean_ui_v123.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Install build dependency
