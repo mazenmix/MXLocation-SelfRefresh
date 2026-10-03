@@ -42,11 +42,17 @@ contents = {
 }
 (icon_set / "Contents.json").write_text(json.dumps(contents, indent=2) + "\n", encoding="utf-8")
 
-# New build number/version to force SpringBoard to refresh the compiled app icon.
+# Critical Home Screen icon fix:
+# Upstream also includes an Icon Composer package named AppIcon.icon. It was
+# winning over Assets.xcassets/AppIcon.appiconset, so SideStore could show the
+# new MX icon while SpringBoard still displayed the old colored Locus icon.
+# Remove AppIcon.icon from the generated Xcode project and compile only the
+# AppIcon.appiconset that the workflow replaces with the MX image.
 project = root / "project.yml"
 text = project.read_text(encoding="utf-8")
-text = text.replace('MARKETING_VERSION: "1.0.2"', 'MARKETING_VERSION: "1.2.3"')
-text = text.replace('CURRENT_PROJECT_VERSION: "3"', 'CURRENT_PROJECT_VERSION: "16"')
+text = text.replace("      - path: AppIcon.icon\n", "")
+text = text.replace('MARKETING_VERSION: "1.0.2"', 'MARKETING_VERSION: "1.2.4"')
+text = text.replace('CURRENT_PROJECT_VERSION: "3"', 'CURRENT_PROJECT_VERSION: "17"')
 project.write_text(text, encoding="utf-8")
 
-print("Applied MX Location clean UI v1.2.3 with rendered MX icon at", root)
+print("Applied MX Location clean UI v1.2.4 with compiled Home Screen MX icon at", root)
