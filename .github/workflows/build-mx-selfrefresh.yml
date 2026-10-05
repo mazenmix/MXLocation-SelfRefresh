@@ -79,6 +79,7 @@ jobs:
           python3 scripts/patch_v132_restore_helpers.py Locus-src
           python3 scripts/patch_v133_features.py Locus-src
           python3 scripts/patch_v140_worlds.py Locus-src
+          python3 scripts/patch_v141_features.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Install build dependency
@@ -120,7 +121,7 @@ jobs:
           find "$WORK/Payload/MXLocation.app" -name embedded.mobileprovision -type f -delete || true
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location' "$WORK/Payload/MXLocation.app/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocation' "$WORK/Payload/MXLocation.app/Info.plist"
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.4.0-MXWorlds-unsigned.ipa"
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-v1.4.1-WorldPhotos-Notes-unsigned.ipa"
           (
             cd "$WORK"
             /usr/bin/zip -qry "$OUTPUT" Payload -x '._*' '.DS_Store' '__MACOSX/*'
@@ -131,9 +132,9 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-v1.4.0-MXWorlds
+          name: MX-Location-v1.4.1-WorldPhotos-Notes
           path: |
-            MX-Location-v1.4.0-MXWorlds-unsigned.ipa
-            MX-Location-v1.4.0-MXWorlds-unsigned.ipa.sha256
+            MX-Location-v1.4.1-WorldPhotos-Notes-unsigned.ipa
+            MX-Location-v1.4.1-WorldPhotos-Notes-unsigned.ipa.sha256
             Locus-src/xcodebuild-navigation.log
           if-no-files-found: error
