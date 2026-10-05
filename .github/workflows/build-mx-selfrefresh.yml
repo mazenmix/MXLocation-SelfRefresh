@@ -76,6 +76,7 @@ jobs:
           python3 scripts/patch_v130_features.py Locus-src
           python3 scripts/patch_v131_features.py Locus-src
           python3 scripts/patch_v132_features.py Locus-src
+          python3 scripts/patch_v132_restore_helpers.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Install build dependency
