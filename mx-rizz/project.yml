@@ -1,0 +1,44 @@
+name: MXRizz
+options:
+  bundleIdPrefix: com.mazenmix
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    CODE_SIGNING_ALLOWED: "NO"
+targets:
+  MXRizz:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: mx-rizz/App.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mazenmix.mxrizz
+        PRODUCT_NAME: MXRizz
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_CFBundleDisplayName: "MX Rizz AI"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+    dependencies:
+      - target: MXRizzKeyboard
+        embed: true
+  MXRizzKeyboard:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: mx-rizz/KeyboardViewController.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mazenmix.mxrizz.keyboard
+        PRODUCT_NAME: MXRizzKeyboard
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: mx-rizz/KeyboardInfo.plist
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
