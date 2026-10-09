@@ -1,0 +1,54 @@
+name: MX Rizz AI - Unsigned IPA
+on:
+  push:
+    branches:
+      - mx-rizz-ai-ipa
+    paths:
+      - 'mx-rizz/**'
+      - '.github/workflows/mx-rizz-ipa.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout MX Rizz sources
+        uses: actions/checkout@v4
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: Prepare XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null; then
+            brew install xcodegen
+          fi
+          xcodegen generate --spec mx-rizz/project.yml --project .
+      - name: Build iPhone ARM64 app and keyboard (unsigned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project MXRizz.xcodeproj -scheme MXRizz -configuration Release \
+            -sdk iphoneos -destination "generic/platform=iOS" \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee mx-rizz-build.log
+      - name: Package actual IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="DerivedData/Build/Products/Release-iphoneos/MXRizz.app"
+          test -f "$APP/MXRizz"
+          test -d "$APP/PlugIns/MXRizzKeyboard.appex"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qr "MXRizzAI-v1.0-unsigned.ipa" Payload
+          unzip -t "MXRizzAI-v1.0-unsigned.ipa" | tail -4
+          ls -lh "MXRizzAI-v1.0-unsigned.ipa"
+          shasum -a 256 "MXRizzAI-v1.0-unsigned.ipa"
+      - name: Upload IPA file
+        uses: actions/upload-artifact@v4
+        with:
+          name: MXRizzAI-v1.0-unsigned-IPA
+          path: MXRizzAI-v1.0-unsigned.ipa
+          if-no-files-found: error
