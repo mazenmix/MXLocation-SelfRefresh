@@ -23,12 +23,13 @@ jobs:
           if ! command -v xcodegen >/dev/null; then
             brew install xcodegen
           fi
-          xcodegen generate --spec mx-rizz/project.yml --project .
+          sed -i '' 's|INFOPLIST_FILE: mx-rizz/KeyboardInfo.plist|INFOPLIST_FILE: KeyboardInfo.plist|' mx-rizz/project.yml
+          xcodegen generate --spec mx-rizz/project.yml --project mx-rizz
       - name: Build iPhone ARM64 app and keyboard (unsigned)
         shell: bash
         run: |
           set -euo pipefail
-          xcodebuild -project MXRizz.xcodeproj -scheme MXRizz -configuration Release \
+          xcodebuild -project mx-rizz/MXRizz.xcodeproj -scheme MXRizz -configuration Release \
             -sdk iphoneos -destination "generic/platform=iOS" \
             -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
