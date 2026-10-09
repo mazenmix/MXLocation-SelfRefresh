@@ -13,7 +13,7 @@ targets:
     platform: iOS
     deploymentTarget: "26.0"
     sources:
-      - path: mx-rizz/App.swift
+      - path: App.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mazenmix.mxrizz
@@ -32,7 +32,7 @@ targets:
     platform: iOS
     deploymentTarget: "26.0"
     sources:
-      - path: mx-rizz/KeyboardViewController.swift
+      - path: KeyboardViewController.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mazenmix.mxrizz.keyboard
