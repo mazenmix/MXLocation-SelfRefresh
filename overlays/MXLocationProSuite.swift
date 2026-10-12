@@ -105,8 +105,8 @@ final class MXProDiscovery: ObservableObject {
             let response = try await MKLocalSearch(request: request).start()
             guard requestToken == token else { return }
             venues = response.mapItems
-                .filter { $0.location.distance(from: target) <= radiusKm * 1000 }
-                .sorted { $0.location.distance(from: target) < $1.location.distance(from: target) }
+                .filter { $0.mxProLocation.distance(from: target) <= radiusKm * 1000 }
+                .sorted { $0.mxProLocation.distance(from: target) < $1.mxProLocation.distance(from: target) }
             if venues.isEmpty { errorText = "No matching verified map venues in this radius. Widen the radius or try another category." }
         } catch {
             guard requestToken == token else { return }
@@ -173,7 +173,7 @@ struct MXProSuiteView: View {
     @State private var itinerary: [String] = []
     @State private var comparison: CLLocationCoordinate2D?
     @State private var selectedPlaceName = "Chosen location"
-    @State private var routeMode: MKDirectionsTransportType = .automobile
+    @State private var routeMode: Int = 0
     @State private var routeDetails = "Choose a destination and calculate a route."
     @State private var routeLoading = false
     @State private var preferredLanguage = "Tagalog"
@@ -296,7 +296,7 @@ struct MXProSuiteView: View {
                     Map(initialPosition:.region(MKCoordinateRegion(center:c,latitudinalMeters:9000,longitudinalMeters:9000))) {
                         Marker("Selected",systemImage:"scope",coordinate:c).tint(cyan)
                         ForEach(Array(discovery.venues.enumerated()),id:\.offset) { _, item in
-                            Marker(item.name ?? "Place", coordinate:item.location.coordinate).tint(.pink)
+                            Marker(item.name ?? "Place", coordinate:item.mxProCoordinate).tint(.pink)
                         }
                     }
                     .frame(height:205).clipShape(RoundedRectangle(cornerRadius:17))
@@ -425,16 +425,16 @@ struct MXProSuiteView: View {
                 }
                 Section("Location") {
                     Button("Use this as selected pin") {
-                        session.pin=item.location.coordinate
+                        session.pin=item.mxProCoordinate
                         selectedVenue=nil
                     }
                     Button("Teleport here using MX pairing") {
-                        session.pin=item.location.coordinate
-                        session.teleport(to:item.location.coordinate,pairing:pairing)
+                        session.pin=item.mxProCoordinate
+                        session.teleport(to:item.mxProCoordinate,pairing:pairing)
                         selectedVenue=nil
                     }
                     Button("Add to favorites") {
-                        session.addFavorite(name:item.name ?? "Saved place",coordinate:item.location.coordinate)
+                        session.addFavorite(name:item.name ?? "Saved place",coordinate:item.mxProCoordinate)
                     }
                     Button("Add to itinerary") {
                         itinerary.append(item.name ?? "Unnamed venue")
@@ -492,8 +492,8 @@ struct MXProSuiteView: View {
                             Text(String(format:"From %.4f, %.4f to %.4f, %.4f",
                                         real.latitude,real.longitude,c.latitude,c.longitude))
                             Picker("Route",selection:$routeMode) {
-                                Text("Drive").tag(MKDirectionsTransportType.automobile)
-                                Text("Walk").tag(MKDirectionsTransportType.walking)
+                                Text("Drive").tag(0)
+                                Text("Walk").tag(1)
                             }.pickerStyle(.segmented)
                             Button("Calculate route preview") {
                                 Task { await calculateRoute(from:real,to:c) }
@@ -577,7 +577,7 @@ struct MXProSuiteView: View {
             routeDetails="Real device location unavailable."
             return
         }
-        await calculateRoute(from:origin,to:item.location.coordinate)
+        await calculateRoute(from:origin,to:item.mxProCoordinate)
     }
 
     private func calculateRoute(from origin:CLLocationCoordinate2D,to destination:CLLocationCoordinate2D) async {
@@ -586,7 +586,7 @@ struct MXProSuiteView: View {
         let request=MKDirections.Request()
         request.source=MKMapItem(placemark:MKPlacemark(coordinate:origin))
         request.destination=MKMapItem(placemark:MKPlacemark(coordinate:destination))
-        request.transportType=routeMode
+        request.transportType = routeMode == 0 ? .automobile : .walking
         do {
             let result=try await MKDirections(request:request).calculate()
             if let route=result.routes.first {
@@ -655,5 +655,13 @@ struct MXProSuiteView: View {
         guard SecItemCopyMatching(query as CFDictionary,&item)==errSecSuccess,
               let data=item as? Data else { return "" }
         return String(data:data,encoding:.utf8) ?? ""
+    }
+}
+
+private extension MKMapItem {
+    var mxProCoordinate: CLLocationCoordinate2D { placemark.coordinate }
+    var mxProLocation: CLLocation {
+        CLLocation(latitude: placemark.coordinate.latitude,
+                   longitude: placemark.coordinate.longitude)
     }
 }
