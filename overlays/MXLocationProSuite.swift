@@ -605,7 +605,7 @@ struct MXProSuiteView: View {
             let content=UNMutableNotificationContent()
             content.title="MX Date Planner"
             content.body=dateNote.isEmpty ? "Your saved date reminder" : dateNote
-            content.sound=.default
+            content.sound = .default
             let components=Calendar.current.dateComponents([.year,.month,.day,.hour,.minute],from:dateTime)
             let trigger=UNCalendarNotificationTrigger(dateMatching:components,repeats:false)
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier:"mxpro-date-" + UUID().uuidString,content:content,trigger:trigger)) { error in
