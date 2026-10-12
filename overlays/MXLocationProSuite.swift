@@ -232,7 +232,7 @@ struct MXProSuiteView: View {
             .navigationBarTitleDisplayMode(.inline)
             .preferredColorScheme(.dark)
             .sheet(item:$openedFeature) { feature in featureDetails(feature) }
-            .sheet(item:$selectedVenue) { item in venueDetails(item) }
+            .sheet(isPresented:Binding(get:{ selectedVenue != nil },set:{ if !$0 { selectedVenue=nil } })) { if let item=selectedVenue { venueDetails(item) } }
             .task(id:scanKey) {
                 if let center {
                     await discovery.refresh(center:center,query:selectedQuery,radiusKm:radiusKm)
