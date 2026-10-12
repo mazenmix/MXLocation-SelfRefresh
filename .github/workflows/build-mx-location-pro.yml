@@ -1,0 +1,103 @@
+name: Build MX Location Pro v4 Independent
+
+on:
+  push:
+    branches:
+      - codex/mx-location-pro-v4
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mx-location-pro-v4-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-pro:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.2"
+      - name: Clone pinned original location engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/ChrisMack32/Locus.git Locus-src
+          git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
+      - name: Apply existing original-version patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift scripts/render_user_mx_icon.swift assets/MXAppIcon1024.png
+          python3 scripts/patch_locus_direct.py Locus-src
+          python3 scripts/patch_clean_ui_v123.py Locus-src
+          python3 scripts/patch_v126_features.py Locus-src
+          python3 scripts/patch_v127_features.py Locus-src
+          python3 scripts/patch_v128_features.py Locus-src
+          python3 scripts/patch_v129_features.py Locus-src
+          python3 scripts/patch_v130_features.py Locus-src
+          python3 scripts/patch_v131_features.py Locus-src
+          python3 scripts/patch_v132_features.py Locus-src
+          python3 scripts/patch_v132_restore_helpers.py Locus-src
+          python3 scripts/patch_v133_features.py Locus-src
+          python3 scripts/patch_v140_worlds.py Locus-src
+          python3 scripts/patch_v141_features.py Locus-src
+          python3 scripts/patch_v142_features.py Locus-src
+      - name: Isolate MX Pro signing identity and install new discovery suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_mx_pro.py Locus-src
+          swift scripts/render_mx_pro_icon.swift assets/MXProIcon1024.png
+          cp assets/MXProIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Locus-src/Locus/Resources/Info.plist || true
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          cd Locus-src
+          xcodegen generate
+      - name: Build iPhone ARM64 unsigned application
+        shell: bash
+        run: |
+          set -eo pipefail
+          cd Locus-src
+          xcodebuild -project Locus.xcodeproj -scheme Locus -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM='' \
+            build | tee xcodebuild-mxpro.log
+      - name: Export isolated unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          WORK="$RUNNER_TEMP/mxpro-pkg"
+          mkdir -p "$WORK/Payload"
+          cp -R "$APP" "$WORK/Payload/MXLocationPro.app"
+          find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} + || true
+          find "$WORK/Payload/MXLocationPro.app" -name embedded.mobileprovision -type f -delete || true
+          INFO="$WORK/Payload/MXLocationPro.app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocationPro' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.0.0' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 40' "$INFO"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
+          test "$BUNDLE_ID" = "com.mazenmix.mxlocationpro"
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-Pro-v4.0.0-unsigned.ipa"
+          (cd "$WORK" && /usr/bin/zip -qry "$OUTPUT" Payload)
+          shasum -a 256 "$OUTPUT" > "$OUTPUT.sha256"
+      - name: Upload MX Location Pro IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MX-Location-Pro-v4.0.0
+          path: |
+            MX-Location-Pro-v4.0.0-unsigned.ipa
+            MX-Location-Pro-v4.0.0-unsigned.ipa.sha256
+            Locus-src/xcodebuild-mxpro.log
+          if-no-files-found: error
