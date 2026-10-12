@@ -28,23 +28,17 @@ plist.write_text(info,encoding="utf-8")
 
 ui = root_view.read_text(encoding="utf-8")
 anchor = '''            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
-                .tag(2)'''
-replacement = '''            MXProSuiteView()
+'''
+addition = '''            MXProSuiteView()
                 .tabItem {
                     Label("MX Pro", systemImage: "sparkles")
                 }
-                .tag(2)
+                .tag(3)
 
             SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
-                .tag(3)'''
-if anchor not in ui: raise RuntimeError("RootView tab anchor no longer matches")
-root_view.write_text(ui.replace(anchor,replacement,1),encoding="utf-8")
+'''
+if anchor not in ui: raise RuntimeError("RootView SettingsView was not found")
+root_view.write_text(ui.replace(anchor,addition,1),encoding="utf-8")
 
 src = repo / "overlays/MXLocationProSuite.swift"
 dst = root / "Locus/Features/Map/MXLocationProSuite.swift"
