@@ -64,7 +64,28 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.4.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "44"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.4.1"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "45"'))
+          PY
+
+      - name: Validate fullscreen Adults 18+ and smooth results
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          shell = Path('Locus-src/Locus/Features/Map/MXProPremiumShell.swift').read_text()
+          edition = Path('Locus-src/Locus/Features/Map/MXDatingEdition.swift').read_text()
+          assert 'MXPremiumCategoryScreen(category: navigation.category)' in edition
+          assert '.toolbar(.hidden, for: .navigationBar)' in shell
+          assert '.toolbar(.hidden, for: .tabBar)' in shell
+          assert 'mxFloatingFullscreenHeader' in shell
+          assert 'mxCompactFloatingVenueFilters' in shell
+          assert 'mxNearbyThreeDetentSheet' in shell
+          assert '.updating($draggingSheet)' in shell
+          assert 'gesture.predictedEndTranslation.height' in shell
+          assert 'radiusVisible.toggle()' in shell
+          assert 'resultsSheet(availableHeight:' in shell
+          assert 'sheetExpanded' not in shell
+          print('Fullscreen header, venue filters and physics-based bottom sheet verified')
           PY
 
       - name: Build for iPhone without code signing
@@ -94,17 +115,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.4.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.4.1-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.4.0-unsigned.ipa > MX-Location-Pro-v4.4.0-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.4.1-unsigned.ipa > MX-Location-Pro-v4.4.1-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.4
+          name: MX-Location-Pro-Dating-v4.4.1
           path: |
-            MX-Location-Pro-v4.4.0-unsigned.ipa
-            MX-Location-Pro-v4.4.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.4.1-unsigned.ipa
+            MX-Location-Pro-v4.4.1-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
