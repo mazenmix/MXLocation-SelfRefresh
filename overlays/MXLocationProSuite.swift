@@ -217,14 +217,14 @@ struct MXProSuiteView: View {
         NavigationStack {
             VStack(spacing:0) {
                 Picker("MX Pro", selection:$segment) {
-                    Text("Discover").tag(0)
-                    Text("Toolkit 41").tag(1)
-                    Text("Planner").tag(2)
+                    Text("Explore").tag(0)
+                    Text("Essentials").tag(1)
+                    Text("Plan").tag(2)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal,14).padding(.vertical,9)
                 if segment == 0 { discoverScreen }
-                else if segment == 1 { toolkitScreen }
+                else if segment == 1 { essentialsScreen }
                 else { plannerScreen }
             }
             .background(Color.black)
@@ -264,21 +264,17 @@ struct MXProSuiteView: View {
                         Text(String(format:"%.5f, %.5f",c.latitude,c.longitude))
                             .font(.caption.monospaced()).foregroundStyle(.secondary)
                     } else {
-                        Text("Choose a pin in the Map tab to start.").foregroundStyle(.orange)
+                        Text("Choose a pin on Map — everything updates automatically.").foregroundStyle(.secondary)
                     }
                 }.padding(15).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:18))
 
-                ScrollView(.horizontal,showsIndicators:false) {
-                    HStack {
-                        category("Dating","heart.fill","date night")
-                        category("Social Radar","dot.radiowaves.left.and.right","social club")
-                        category("Cafes","cup.and.saucer.fill","cafe")
-                        category("Nightlife","moon.stars.fill","nightlife")
-                        category("Jazz","music.note","jazz lounge")
-                        category("Events","calendar","social events venue")
-                        category("Food","fork.knife","restaurant")
-                        category("Activities","sparkles","things to do")
-                    }
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    category("Date Spots","heart.fill","date night")
+                    category("Social Radar","person.2.fill","social club")
+                    category("Nightlife","moon.stars.fill","nightlife")
+                    category("Jazz","music.note","jazz lounge")
+                    category("Cafés","cup.and.saucer.fill","cafe")
+                    category("Activities","sparkles","things to do")
                 }
                 HStack {
                     Text(selectedTitle).font(.headline)
@@ -322,7 +318,7 @@ struct MXProSuiteView: View {
                         .background(.white.opacity(0.065),in:RoundedRectangle(cornerRadius:15))
                     }.buttonStyle(.plain)
                 }
-                Text("Map venue data ≠ live attendance, gender counts or verified single profiles.")
+                Text("Nearby venues are place results, not live counts of people or dating profiles.")
                     .font(.caption2).foregroundStyle(.secondary)
             }.padding(15)
         }
@@ -334,40 +330,65 @@ struct MXProSuiteView: View {
             selectedQuery=query
         } label: {
             Label(label,systemImage:symbol)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal,13).padding(.vertical,10)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, minHeight: 43)
+                .padding(.horizontal, 3)
                 .background(selectedQuery == query ? cyan.opacity(0.25) : .white.opacity(0.09),
                             in:Capsule())
         }.buttonStyle(.plain)
     }
 
-    private var toolkitScreen: some View {
+    // Nine actionable destinations instead of 41 duplicated menu entries.
+    private var essentialsScreen: some View {
         List {
             Section {
-                Text("41 modules in the suite. Each indicates whether it is usable locally, a preview, or requires an authorized live-data provider.")
+                Text("Useful controls only. Discover venues and local context on Explore.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            ForEach(MXProCatalog.all) { feature in
-                Button {
-                    if let query = feature.query {
-                        selectedTitle=feature.name
-                        selectedQuery=query
-                        segment=0
-                    } else { openedFeature=feature }
-                } label: {
-                    HStack(spacing:12) {
-                        Image(systemName:feature.symbol).foregroundStyle(cyan).frame(width:25)
-                        VStack(alignment:.leading,spacing:4) {
-                            Text("\(feature.id). \(feature.name)").foregroundStyle(.primary)
-                            Text(feature.availability).font(.caption2)
-                                .foregroundStyle(feature.availability == "Available" ? .green : .orange)
-                        }
-                        Spacer()
-                        Image(systemName:"chevron.right").foregroundStyle(.tertiary)
-                    }
-                }
+            Section("Move & Control") {
+                essentialRow(1)
+                essentialRow(10)
+                essentialRow(11)
+                essentialRow(13)
             }
-        }.listStyle(.insetGrouped)
+            Section("Meet & Plan") {
+                essentialRow(8)
+                essentialRow(29)
+                essentialRow(9)
+            }
+            Section("Explore & Private") {
+                essentialRow(27)
+                essentialRow(37)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder
+    private func essentialRow(_ id: Int) -> some View {
+        if let feature = MXProCatalog.all.first(where: { $0.id == id }) {
+            Button {
+                openedFeature = feature
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: feature.symbol)
+                        .foregroundStyle(cyan)
+                        .frame(width: 28)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(feature.name).foregroundStyle(.primary)
+                            .font(.subheadline.weight(.semibold))
+                        Text(feature.description).font(.caption2)
+                            .foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 5)
+            }
+        }
     }
 
     private var plannerScreen: some View {
