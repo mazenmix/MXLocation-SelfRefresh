@@ -405,7 +405,10 @@ struct MXProSuiteView: View {
                         .foregroundStyle(cyan)
                         .frame(width: 28)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(feature.name).foregroundStyle(.primary)
+                        Text(id == 29 ? "Talk & Phrases" :
+                             id == 13 ? "Saved Places" :
+                             id == 11 ? "Location Status & Restore" : feature.name)
+                            .foregroundStyle(.primary)
                             .font(.subheadline.weight(.semibold))
                         Text(feature.description).font(.caption2)
                             .foregroundStyle(.secondary).lineLimit(2)
@@ -435,28 +438,14 @@ struct MXProSuiteView: View {
                 Text("Your own estimate: \(budget,format:.number) in the currency you enter. Venue prices are not guessed.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            Section("Conversation / Translation") {
-                Picker("Language",selection:$preferredLanguage) {
-                    ForEach(["Tagalog","Indonesian","English"],id:\.self) { Text($0) }
-                }
-                ForEach(phrases,id:\.self) { phrase in
-                    ShareLink(item:phrase) { Text(phrase).font(.subheadline) }
-                }
-            }
             Section("Itinerary") {
                 if itinerary.isEmpty { Text("Add locations from Discover cards.").foregroundStyle(.secondary) }
                 ForEach(itinerary,id:\.self) { Text($0) }
                 Button("Clear itinerary") { itinerary=[] }.disabled(itinerary.isEmpty)
             }
-            Section("Privacy Vault") {
-                if vaultUnlocked {
-                    SecureField("Private note",text:$vaultNote)
-                    Button("Save to Keychain") { saveVault() }
-                    Button("Lock now") { vaultUnlocked=false;vaultNote="" }
-                } else {
-                    Button("Unlock with Face ID / passcode") { unlockVault() }
-                }
-                Text(vaultMessage).font(.caption).foregroundStyle(.secondary)
+            Section("Meet Safely") {
+                Text("Meet in a public place, verify identities through the original service, and avoid sending money.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
         }.scrollContentBackground(.hidden)
     }
@@ -526,11 +515,23 @@ struct MXProSuiteView: View {
                         ForEach(phrases,id:\.self) { phrase in
                             ShareLink(item:phrase) { Text(phrase) }
                         }
-                    case 8,34,35,37:
+                    case 8,34,35:
                         Button("Open Planner / Vault") {
                             openedFeature=nil
                             segment=2
                         }
+                    case 37:
+                        if vaultUnlocked {
+                            SecureField("Private note", text:$vaultNote)
+                            Button("Save securely to Keychain") { saveVault() }
+                            Button("Lock now") {
+                                vaultUnlocked=false
+                                vaultNote=""
+                            }
+                        } else {
+                            Button("Unlock with Face ID / passcode") { unlockVault() }
+                        }
+                        Text(vaultMessage).font(.caption).foregroundStyle(.secondary)
                     case 9:
                         Link("Tinder",destination:URL(string:"https://tinder.com")!)
                         Link("Bumble",destination:URL(string:"https://bumble.com")!)
