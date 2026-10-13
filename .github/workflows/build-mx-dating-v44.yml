@@ -1,4 +1,4 @@
-name: Build MX Location Pro Unified Dark Maps 4.7.1
+name: Build MX Location Pro Venue Discovery 4.8.0
 
 on:
   push:
@@ -65,7 +65,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.7.1"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "71"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.8.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "80"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -164,7 +164,7 @@ jobs:
           print('Settings-only Apple/OpenStreetMap switch, native MapLibre and zero Google SDK verified.')
           PY
 
-      - name: Check universal dark fullscreen map surfaces
+      - name: Check natural-color full-screen maps and venues
         shell: bash
         run: |
           python3 - <<'PY'
@@ -174,22 +174,44 @@ jobs:
           map_home=(p/'MapHomeView.swift').read_text()
           shell=(p/'MXProPremiumShell.swift').read_text()
           section=shell[shell.index('struct MXPremiumCategoryScreen: View {'):shell.index('struct MXPremiumSavedScreen: View {')]
-          assert 'https://tiles.openfreemap.org/styles/dark' in provider
-          assert 'https://tiles.openfreemap.org/styles/liberty' not in provider
+          assert 'https://tiles.openfreemap.org/styles/liberty' in provider
+          assert 'https://tiles.openfreemap.org/styles/dark' not in provider
           assert 'struct MXOpenStreetVenueMapCanvas' in provider
           assert 'func mapView(_ mapView: MLNMapView, didSelect annotation:' in provider
           assert '.ignoresSafeArea(.container, edges: [.top, .bottom])' in map_home
           assert 'mapChoice.selected == .osm' in section
           assert 'MXOpenStreetVenueMapCanvas(' in section
           assert '.ignoresSafeArea(.container, edges: .all)' in section
-          assert 'focusedVenue = item.placemark.coordinate' in section
+          assert 'selectedVenue = item' in section
           assert 'mapPosition = .region(' in section
-          assert '.environment(\\.colorScheme, .dark)' in section
+          assert '.environment(\\.colorScheme, .light)' in section
           assert 'MXMapProviderPicker' not in section
           assert 'MXMapSettingsScreen()' in shell
           assert 'Apple Maps' in provider and 'OpenStreetMap' in provider
           assert 'MapReader { proxy in' in map_home
-          print('Dark full-bleed home/category MapLibre, venue selection, Apple fallback and Settings-only switching validated.')
+          print('Natural-color OpenFreeMap, full-bleed category and Settings-only map choice verified.')
+          PY
+
+      - name: Validate Self Care and source-backed venue details
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("Locus-src/Locus/Features/Map")
+          shell=(p/"MXProPremiumShell.swift").read_text()
+          profile=(p/"MXVenueEnrichment.swift").read_text()
+          edition=(p/"MXDatingEdition.swift").read_text()
+          assert 'case selfCare' in shell, 'self-care category missing'
+          assert '"Foot Spa"' in shell and '"Massage"' in shell and '"Nails"' in shell
+          assert '"security"' in shell and '"allied services"' in shell, 'Adult venue false positive filter missing'
+          assert 'MXVenuePhotoGallery(item: item)' in shell and 'MXVenueContactDetails(item: item)' in shell
+          assert 'MXPremiumVenueImage' in shell and 'MXVenueOpenData.mapPreview' in shell
+          assert 'mxRealVenueSwipeGallery' in profile and 'mxCopyLatLong' in profile
+          assert 'contact:whatsapp' in profile and 'contact:facebook' in profile
+          assert 'normalized(found) == normalized(name)' in profile, 'Unverified OSM identity match'
+          assert '.fullScreenCover(isPresented: $navigation.openCategory)' in edition, 'Category must cover tab bar completely'
+          assert 'MXOpenStreetVenueMapCanvas(' in shell and 'mxAppleNearbyFullscreen' in shell
+          print('Self-care, realistic images, contact sources, coordinates, natural colors, and fullscreen verified')
           PY
 
       - name: Build for iPhone without code signing
@@ -219,17 +241,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.7.1-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.8.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.7.1-unsigned.ipa > MX-Location-Pro-v4.7.1-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.8.0-unsigned.ipa > MX-Location-Pro-v4.8.0-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.7.1
+          name: MX-Location-Pro-Dating-v4.8.0
           path: |
-            MX-Location-Pro-v4.7.1-unsigned.ipa
-            MX-Location-Pro-v4.7.1-unsigned.ipa.sha256
+            MX-Location-Pro-v4.8.0-unsigned.ipa
+            MX-Location-Pro-v4.8.0-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
