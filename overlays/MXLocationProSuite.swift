@@ -246,9 +246,9 @@ struct MXProSuiteView: View {
             VStack(alignment:.leading,spacing:14) {
                 VStack(alignment:.leading,spacing:6) {
                     HStack {
-                        Label("DISCOVERY ENGINE",systemImage:"scope").foregroundStyle(cyan)
+                        Label("LIVE AREA DISCOVERY",systemImage:"scope").foregroundStyle(cyan)
                         Spacer()
-                        Text(discovery.isLoading ? "SEARCHING" : "REGION AWARE")
+                        Text(discovery.isLoading ? "SEARCHING" : (session.isSpoofing ? "GPS ACTIVE" : "READY"))
                             .font(.caption2.weight(.bold)).foregroundStyle(.secondary)
                     }
                     Text(discovery.regionName)
@@ -261,8 +261,8 @@ struct MXProSuiteView: View {
                         }
                     }.font(.caption).foregroundStyle(.secondary)
                     if let c = center {
-                        Text(String(format:"%.5f, %.5f",c.latitude,c.longitude))
-                            .font(.caption.monospaced()).foregroundStyle(.secondary)
+                        Text("Results follow the location you selected on the map.")
+                            .font(.caption2).foregroundStyle(.secondary)
                     } else {
                         Text("Choose a pin on Map — everything updates automatically.").foregroundStyle(.secondary)
                     }
@@ -295,11 +295,38 @@ struct MXProSuiteView: View {
                             Marker(item.name ?? "Place", coordinate:item.mxProCoordinate).tint(.pink)
                         }
                     }
+                    .id(String(format:"%.5f:%.5f",c.latitude,c.longitude))
                     .frame(height:205).clipShape(RoundedRectangle(cornerRadius:17))
                     .allowsHitTesting(false)
                 }
 
-                ForEach(Array(discovery.venues.enumerated()),id:\.offset) { _, item in
+                if let closest = discovery.venues.first, let position = center {
+                    Button { selectedVenue = closest } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(cyan).frame(width: 30)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("CLOSEST MATCH")
+                                    .font(.caption2.weight(.bold)).foregroundStyle(cyan)
+                                Text(closest.name ?? "Nearby venue")
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                Text(String(format: "%.1f km from your pin",
+                                    closest.mxProLocation.distance(from: CLLocation(
+                                        latitude: position.latitude, longitude: position.longitude
+                                    )) / 1000))
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                        }
+                        .padding(14)
+                        .background(cyan.opacity(0.10),
+                                    in: RoundedRectangle(cornerRadius: 17))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                ForEach(Array(discovery.venues.dropFirst().enumerated()),id:\.offset) { _, item in
                     Button { selectedVenue = item } label: {
                         HStack(spacing:12) {
                             Image(systemName:"mappin.and.ellipse")
@@ -526,12 +553,32 @@ struct MXProSuiteView: View {
                             Text(String(format:"Selected: %.5f, %.5f",c.latitude,c.longitude))
                         }
                         Text(session.simulated == nil ? "No simulated location reported by the app." : "A simulated coordinate is reported by the app.")
+                        if session.isSpoofing {
+                            Button(role: .destructive) {
+                                session.stop(pairing: pairing)
+                                openedFeature = nil
+                            } label: {
+                                Label("Stop simulation & restore", systemImage: "stop.circle.fill")
+                            }
+                        }
                         Text("An iOS force-quit can stop this session; this does not imply guaranteed persistence.")
                     case 12,13,38:
+                        if !session.favorites.isEmpty {
+                            Text("Favorite locations").font(.caption.weight(.semibold))
+                        }
                         ForEach(session.favorites) { favorite in
                             Button(favorite.name) {
                                 session.pin=favorite.coordinate
                                 openedFeature=nil
+                            }
+                        }
+                        if !session.recents.isEmpty {
+                            Text("Recently used").font(.caption.weight(.semibold))
+                            ForEach(Array(session.recents.prefix(5))) { recent in
+                                Button(recent.name) {
+                                    session.pin=recent.coordinate
+                                    openedFeature=nil
+                                }
                             }
                         }
                         if let c=center {
