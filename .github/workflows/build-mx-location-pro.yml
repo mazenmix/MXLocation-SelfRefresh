@@ -79,6 +79,9 @@ jobs:
           for cat in ("dateSpots", "socialRadar", "nightlife", "cafes", "activities", "jazz"):
               assert "case " + cat in shell or ", " + cat in shell, f"Missing category: {cat}"
           assert 'No ratings, prices, or live attendance are inferred' in shell, "Data integrity note absent"
+          assert 'MapCircle(center: item.placemark.coordinate' in shell, "Social venue density visualization missing"
+          assert 'customTerm: customSearch' in shell, "Live venue filter is not wired"
+          assert all(x in shell for x in ('"Restaurants"', '"Rooftops"', '"Bars"', '"Clubs"')), "Visual venue filters missing"
           print("Premium UI, active location shortcuts, categories and real tool screens verified.")
           PY
       - name: Generate Xcode project
@@ -111,19 +114,19 @@ jobs:
           INFO="$WORK/Payload/MXLocationPro.app/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$INFO"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocationPro' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.2.0' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 60' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.2.1' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 61' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           test "$BUNDLE_ID" = "com.mazenmix.mxlocationpro"
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-Pro-v4.2.0-unsigned.ipa"
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-Pro-v4.2.1-unsigned.ipa"
           (cd "$WORK" && /usr/bin/zip -qry "$OUTPUT" Payload)
           shasum -a 256 "$OUTPUT" > "$OUTPUT.sha256"
       - name: Upload MX Location Pro IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-Pro-v4.2.0
+          name: MX-Location-Pro-v4.2.1
           path: |
-            MX-Location-Pro-v4.2.0-unsigned.ipa
-            MX-Location-Pro-v4.2.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.2.1-unsigned.ipa
+            MX-Location-Pro-v4.2.1-unsigned.ipa.sha256
             Locus-src/xcodebuild-mxpro.log
           if-no-files-found: error
