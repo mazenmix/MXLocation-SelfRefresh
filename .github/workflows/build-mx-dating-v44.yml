@@ -1,4 +1,4 @@
-name: Build MX Location Pro Real Venue Photos 4.9.2
+name: Build MX Location Pro Real Venue Photos 4.9.3
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.2"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "92"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.3"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "93"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -238,6 +238,9 @@ jobs:
           assert "wikidataPictures" in photos and "wikidataID" in gallery, "Verified Wikimedia fallback missing"
           assert "lastAttempted" in photos and "600" in photos, "Transient photo failure retry missing"
           assert "overpass-api.de" in gallery, "OSM fallback mirror missing"
+          assert "googlePlacesPictures" in photos and "places:searchText" in photos, "Google Places provider not connected"
+          settings = (p/"MXOpenStreetMapProvider.swift").read_text()
+          assert "mxGooglePlacesPhotosKey" in settings, "Photo API key configuration missing"
           assert "load(item, priority: true)" in gallery, "Gallery not prioritized"
           assert "MXVenuePhotoSource.osmPictures" in photos and "MXVenuePhotoSource.websitePictures" in photos
           assert "mapPreview" not in gallery[gallery.index("struct MXVenuePhotoGallery"):gallery.index("struct MXVenueContactDetails")]
@@ -271,17 +274,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.2-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.3-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.9.2-unsigned.ipa > MX-Location-Pro-v4.9.2-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.9.3-unsigned.ipa > MX-Location-Pro-v4.9.3-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.9.2
+          name: MX-Location-Pro-Dating-v4.9.3
           path: |
-            MX-Location-Pro-v4.9.2-unsigned.ipa
-            MX-Location-Pro-v4.9.2-unsigned.ipa.sha256
+            MX-Location-Pro-v4.9.3-unsigned.ipa
+            MX-Location-Pro-v4.9.3-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
