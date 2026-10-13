@@ -45,6 +45,10 @@ struct MXDatingExploreHome: View {
                 }
                 // Stays beneath the map search without covering the map itself.
                 .padding(.top, 74)
+                .opacity(navigation.isSearchActive ? 0 : 1)
+                .allowsHitTesting(!navigation.isSearchActive)
+                .accessibilityHidden(navigation.isSearchActive)
+                .animation(.easeOut(duration: 0.16), value: navigation.isSearchActive)
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $navigation.openCategory) {
