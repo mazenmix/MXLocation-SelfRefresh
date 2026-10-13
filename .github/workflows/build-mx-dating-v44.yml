@@ -151,7 +151,7 @@ jobs:
           assert 'exactVersion: 6.31.0' in project and 'product: MapLibre' in project
           assert 'GoogleMaps' not in project and 'product: GoogleMaps' not in project
           assert 'import MapLibre' in maplibre and 'MLNMapView(frame: .zero, styleURL:' in maplibre
-          assert 'https://tiles.openfreemap.org/styles/dark' in maplibre
+          assert 'https://tiles.openfreemap.org/styles/liberty' in maplibre
           assert 'MXOpenStreetMapCanvas(' in map_home and 'MapReader { proxy in' in map_home
           assert 'session.pin' in map_home and 'session.simulated' in map_home
           assert 'MXMapChoiceStore()' in premium and '.environmentObject(mapChoice)' in premium
