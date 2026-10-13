@@ -139,11 +139,11 @@ saved_code = root_file.read_text(encoding="utf-8")
 saved_start = saved_code.index("struct MXSavedView: View {")
 saved_end = saved_code.index("private struct MXFavoriteLocalClock: View {", saved_start)
 saved_section = saved_code[saved_start:saved_end]
-title_anchor = '            .navigationTitle("Saved Worlds")\n            .navigationBarTitleDisplayMode(.large)'
+title_anchor = '            .toolbar(.hidden, for: .navigationBar)'
 if saved_section.count(title_anchor) != 1:
     raise RuntimeError("Saved Worlds title anchor missing")
-new_title = '''            .navigationTitle("Saved Worlds")
-            .navigationBarTitleDisplayMode(.large)
+new_title = '''            .navigationTitle("Favorites")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
