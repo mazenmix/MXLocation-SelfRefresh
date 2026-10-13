@@ -23,6 +23,8 @@ struct MXVenueOpenProfile {
     var whatsapp: URL?
     var phone: String?
     var email: String?
+    // Exact-name, nearby OSM venue record may link to a specific Wikidata item.
+    var wikidataID: String?
     var verifiedOSMMatch = false
 
     static func officialURL(_ value: String?) -> URL? {
@@ -94,6 +96,10 @@ enum MXVenueOpenData {
                 .distance(from: CLLocation(latitude: p.latitude, longitude: p.longitude)) <= 130 else { continue }
 
             profile.verifiedOSMMatch = true
+            if let id = tags["wikidata"], id.first == "Q", id.count > 1, id.count <= 16,
+               id.dropFirst().allSatisfy(\.isNumber) {
+                profile.wikidataID = id
+            }
             profile.site = profile.site ?? MXVenueOpenProfile.officialURL(tags["contact:website"] ?? tags["website"])
             profile.phone = profile.phone ?? tags["contact:phone"] ?? tags["phone"]
             profile.email = tags["contact:email"] ?? tags["email"]
