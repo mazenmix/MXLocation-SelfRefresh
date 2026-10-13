@@ -353,3 +353,132 @@ if "searchResults(maxHeight:" not in map_text or "mxSearchScrollableResults" not
     raise RuntimeError("Search replacement failed validation")
 map_file.write_text(map_text, encoding="utf-8")
 print("Dating Edition: bounded scrolling suggestions below search, adaptive keyboard layout and hidden category chips.")
+
+
+# MX Maps Dual Provider. Google SDK is a real in-app map, not an external link.
+# A user may opt to store a key on their own device in Keychain; no secret
+# required in the public GitHub source or unsigned GitHub artifact.
+google_source = repo / "overlays/MXGoogleMapsProvider.swift"
+if not google_source.is_file():
+    raise RuntimeError("Google provider Swift overlay missing")
+(target / google_source.name).write_bytes(google_source.read_bytes())
+
+premium_file = target / "MXProPremiumShell.swift"
+premium_text = premium_file.read_text(encoding="utf-8")
+app_nav = '    @StateObject private var navigation = MXPremiumNavigation()'
+if premium_text.count(app_nav) != 1:
+    raise RuntimeError("Root navigation state anchor missing")
+premium_text = premium_text.replace(
+    app_nav, app_nav + chr(10) + '    @StateObject private var mapChoice = MXMapChoiceStore()', 1
+)
+env_nav = '        .environmentObject(navigation)'
+if premium_text.count(env_nav) != 1:
+    raise RuntimeError("Root environment navigation anchor missing")
+premium_text = premium_text.replace(
+    env_nav, env_nav + chr(10) + '        .environmentObject(mapChoice)', 1
+)
+premium_file.write_text(premium_text, encoding="utf-8")
+
+dating_file = target / "MXDatingEdition.swift"
+dating_text = dating_file.read_text(encoding="utf-8")
+dating_start = dating_text.index("struct MXDatingExploreHome: View {")
+dating_end = dating_text.index("enum MXWingmanTone:", dating_start)
+dating_part = dating_text[dating_start:dating_end]
+header = "    @EnvironmentObject private var navigation: MXPremiumNavigation"
+if dating_part.count(header) != 1:
+    raise RuntimeError("Explore map provider environment anchor missing")
+dating_part = dating_part.replace(
+    header, header + chr(10) +
+    '    @EnvironmentObject private var mapChoice: MXMapChoiceStore', 1
+)
+top_categories = '                ScrollView(.horizontal, showsIndicators: false) {'
+if dating_part.count(top_categories) != 1:
+    raise RuntimeError("Explore categories scroll anchor missing")
+# A provider selector stays just below the existing category chips.
+button_point = '''                .animation(.easeOut(duration: 0.16), value: navigation.isSearchActive)'''
+if dating_part.count(button_point) != 1:
+    raise RuntimeError("Explore category animation anchor missing")
+dating_part = dating_part.replace(button_point, button_point + '''
+                MXMapProviderPicker()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 119)
+                    .opacity(navigation.isSearchActive ? 0 : 1)
+                    .allowsHitTesting(!navigation.isSearchActive)
+                    .animation(.easeOut(duration: 0.16), value: navigation.isSearchActive)
+''',1)
+toolbar = '''            .toolbar(.hidden, for: .navigationBar)'''
+if dating_part.count(toolbar) != 1:
+    raise RuntimeError("Explore toolbar anchor missing")
+dating_part = dating_part.replace(toolbar, '''            .sheet(isPresented: $mapChoice.showSetup) {
+                MXGoogleMapSetupSheet()
+                    .environmentObject(mapChoice)
+            }
+''' + toolbar, 1)
+dating_text = dating_text[:dating_start] + dating_part + dating_text[dating_end:]
+dating_file.write_text(dating_text, encoding="utf-8")
+
+map_file = target / "MapHomeView.swift"
+map_text = map_file.read_text(encoding="utf-8")
+navigation_env = '    @EnvironmentObject private var premiumNavigation: MXPremiumNavigation'
+if map_text.count(navigation_env) != 1:
+    raise RuntimeError("MapHomeView provider environment anchor missing")
+map_text = map_text.replace(
+    navigation_env, navigation_env + chr(10) +
+    '    @EnvironmentObject private var mapChoice: MXMapChoiceStore', 1
+)
+map_start = '            MapReader { proxy in'
+map_end = '            .background(Color.black.ignoresSafeArea())'
+if map_text.count(map_start) != 1 or map_text.count(map_end) != 1:
+    raise RuntimeError("MapKit native map boundary not found")
+map_from = map_text.index(map_start)
+map_to = map_text.index(map_end, map_from) + len(map_end)
+apple_original = map_text[map_from:map_to]
+new_map = '''            if mapChoice.selected == .google && mapChoice.googleReady {
+                MXGoogleMapCanvas(
+                    selectedPin: session.pin,
+                    simulated: session.simulated,
+                    realLocation: session.realCoordinate,
+                    onTap: { location in
+                        searchFocused = false
+                        choosePin(location, name: nil, subtitle: nil, zoom: false)
+                    }
+                )
+                .accessibilityIdentifier("mxNativeGoogleMap")
+                .transition(.opacity)
+            } else {
+''' + apple_original + '''
+            }
+'''
+map_text = map_text[:map_from] + new_map + map_text[map_to:]
+map_file.write_text(map_text, encoding="utf-8")
+
+# XcodeGen SwiftPM package dependency: native GoogleMaps SDK v11.2.0.
+# Project file was inherited from Locus; preserve all previous settings.
+project_file = root / "project.yml"
+project_text = project_file.read_text(encoding="utf-8")
+target_anchor = "targets:" + chr(10) + "  Locus:"
+if project_text.count(target_anchor) != 1:
+    raise RuntimeError("Project yml target anchor missing")
+project_text = project_text.replace(
+    target_anchor,
+    """packages:
+  GoogleMaps:
+    url: https://github.com/googlemaps/ios-maps-sdk
+    exactVersion: 11.2.0
+targets:
+  Locus:""", 1
+)
+dependency_anchor = "    type: application" + chr(10) + "    platform: iOS"
+if project_text.count(dependency_anchor) != 1:
+    raise RuntimeError("XcodeGen dependency insertion anchor missing")
+project_text = project_text.replace(
+    dependency_anchor,
+    """    type: application
+    platform: iOS
+    dependencies:
+      - package: GoogleMaps
+        product: GoogleMaps""", 1
+)
+project_file.write_text(project_text, encoding="utf-8")
+print("MX Maps: native Apple/Google provider switch, Google SwiftPM 11.2.0, Keychain API key and optional persistence.")
