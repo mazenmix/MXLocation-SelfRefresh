@@ -1,4 +1,4 @@
-name: Build MX Location Pro Real Venue Photos 4.9.3
+name: Build MX Location Pro Real Venue Photos 4.9.4
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.3"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "93"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.4"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "94"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -99,7 +99,9 @@ jobs:
           wingman = (p/'MXDatingEdition.swift').read_text()
           premium = (p/'MXProPremiumShell.swift').read_text()
           assert 'MXSavedView(selectedTab: $navigation.tab)' in (p/'MXProPremiumShell.swift').read_text(), 'Saved tab missing'
-          assert 'mxAddFavoriteToSaved' in root, 'Add favorite button missing'
+          assert 'mxAddFavoriteToSaved' not in root, 'Redundant top-right Favorites star still present'
+          assert '.navigationTitle("Favorites")' in root, 'Favorites title lost'
+          assert 'MXSavedView(selectedTab: $navigation.tab)' in premium, 'Saved tab must remain'
           assert 'moveFavorite(sourceID:' in root, 'Reorder lost'
           assert 'renameFavorite(' in root, 'Rename lost'
           assert 'MXWorldListRow(' in root and 'context.weather?.description' in (p/'MXWorlds.swift').read_text(), 'Weather row missing'
@@ -274,17 +276,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.3-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.4-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.9.3-unsigned.ipa > MX-Location-Pro-v4.9.3-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.9.4-unsigned.ipa > MX-Location-Pro-v4.9.4-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.9.3
+          name: MX-Location-Pro-Dating-v4.9.4
           path: |
-            MX-Location-Pro-v4.9.3-unsigned.ipa
-            MX-Location-Pro-v4.9.3-unsigned.ipa.sha256
+            MX-Location-Pro-v4.9.4-unsigned.ipa
+            MX-Location-Pro-v4.9.4-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
