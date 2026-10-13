@@ -141,8 +141,9 @@ map_text = map_text.replace('''            if session.isSpoofing,
 ''', "", 1)
 map_file.write_text(map_text, encoding="utf-8")
 
-# Show an Add Favorite button directly in Saved Worlds. This saves into
-# SpoofSession's established favorites collection (no duplicate database).
+# The Saved tab already exposes favorite management in its cards.
+# Keep the compact Favorites heading but remove the redundant top-right
+# star button from the original MXSavedView, not the bottom Saved tab.
 root_file = target / "RootView.swift"
 saved_code = root_file.read_text(encoding="utf-8")
 saved_start = saved_code.index("struct MXSavedView: View {")
@@ -152,28 +153,12 @@ title_anchor = '            .toolbar(.hidden, for: .navigationBar)'
 if saved_section.count(title_anchor) != 1:
     raise RuntimeError("Saved Worlds title anchor missing")
 new_title = '''            .navigationTitle("Favorites")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        if let coordinate = session.pin ?? session.simulated {
-                            let name = String(format: "Saved %.4f, %.4f",
-                                              coordinate.latitude, coordinate.longitude)
-                            session.addFavorite(name: name, coordinate: coordinate)
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        }
-                    } label: {
-                        Label("Add Favorite", systemImage: "star.circle.fill")
-                            .font(.headline)
-                    }
-                    .disabled(session.pin == nil && session.simulated == nil)
-                    .accessibilityIdentifier("mxAddFavoriteToSaved")
-                }
-            }'''
+            .navigationBarTitleDisplayMode(.inline)'''
 saved_section = saved_section.replace(title_anchor, new_title, 1)
+assert 'mxAddFavoriteToSaved' not in saved_section, "Redundant top-right Saved star remains"
 root_file.write_text(saved_code[:saved_start] + saved_section +
                      saved_code[saved_end:], encoding="utf-8")
-print("Saved Worlds: add favorite button, drag reorder, rename and local weather retained.")
+print("Saved Worlds: redundant header star removed; row options, reorder, rename and weather retained.")
 print("Dating Edition: Saved favorites/tab and 1.9-second top transient World Active toast.")
 
 
