@@ -436,7 +436,7 @@ struct MXDatingWingmanScreen: View {
             do {
                 let instructions = """
                     You are an ethical, warm dating conversation coach.
-                    Create authentic, concise, natural messages; respect consent and boundaries.
+                    Create authentic, specific, natural messages based on the chat and user goals. Respect consent and boundaries; use confident flirting only where mutual interest is plausible. Never pressure anyone. Adapt tone and reply length.
                     Never fabricate knowledge about another person's emotions or imply certainty.
                     Answer in English. Use exactly 5 lines, each beginning with its label:
                     ONE|reply text
@@ -450,8 +450,8 @@ struct MXDatingWingmanScreen: View {
                 let prompt = """
                     Conversation to respond to:
                     \(message)
-                    Preferred style: \(tone.rawValue).
-                    Suggest 3 distinct short messages for an authentic chat.
+                    Preferred style: \(tone.rawValue).\n                     Conversation goal: \(goal.rawValue).\n                     Response length: \(length.rawValue).\n                     Optional user context: \(String(chatContext.prefix(420))).
+                    Suggest 3 distinct, usable messages: one warm, one playful or flirty, and one more direct. Reference meaningful concrete details when provided. Adult flirting should be bold, consensual, and non-explicit.
                     """
                 let session = LanguageModelSession(instructions: instructions)
                 let result = try await session.respond(to: prompt)
@@ -510,6 +510,61 @@ struct MXDatingWingmanScreen: View {
             ]
             why = "Open-ended questions invite real conversation without pretending to know their feelings."
             nextStep = "Follow up on one detail from their reply instead of sending multiple messages."
+        }
+
+        switch goal {
+        case .first:
+            replies = [
+                "Hey! What is something you are genuinely excited about lately?",
+                "I had to say hello 😄 Are you more into spontaneous adventures or quiet conversations?",
+                "Hi! What would your perfect free evening look like?"
+            ]
+            why = "Make your first message specific and easy to answer rather than using generic praise."
+        case .meaningful:
+            replies = [
+                "What matters most to you when you're getting to know someone?",
+                "I like deeper conversations. What's something that changed your perspective on life?",
+                "What makes you feel really understood by someone?"
+            ]
+            why = "Invite depth without assuming the other person wants an intense conversation."
+        case .date:
+            replies = [
+                "I've enjoyed talking with you. Would you like to grab coffee this weekend?",
+                "This has been fun! Want to continue our conversation over dinner?",
+                "I'd like to meet you somewhere nice. Are you free for a relaxed date soon?"
+            ]
+            why = "A clear invitation with an easy way to decline respects both people's time."
+            nextStep = "Offer a public place and a specific time only if she is interested."
+        case .reconnect:
+            replies = [
+                "Hey, I was thinking of our conversation. How have you been?",
+                "Hi! It's been a little while 😊 How is your week going?",
+                "I enjoyed our last chat and thought I'd say hello again."
+            ]
+            why = "Reconnect without guilt or pressure."
+        case .boundaries:
+            replies = [
+                "I value honesty and comfort for both of us. Can we talk about what we're looking for?",
+                "I appreciate the conversation. I prefer moving at a pace we're both comfortable with.",
+                "I'd rather be clear about my expectations than leave either of us guessing."
+            ]
+            why = "Boundaries are strongest when they are kind and direct."
+        case .afterDark:
+            replies = [
+                "I like the chemistry here. You're making it hard not to flirt a little 😉",
+                "I'm all for chemistry with a touch of mischief. Are we on the same page?",
+                "There's definitely a spark in this conversation. Want to see if it's there in person?"
+            ]
+            why = "Adult flirtation can be confident and suggestive without presuming consent."
+            nextStep = "Match her level of interest; ease off if she isn't reciprocating."
+        case .chemistry:
+            break
+        }
+        if length == .concise {
+            replies = replies.map { reply in
+                let words = reply.split(separator: " ")
+                return words.count > 21 ? words.prefix(21).joined(separator: " ") + "…" : reply
+            }
         }
         if tone == .spicy {
             replies[1] = "You're making it difficult not to flirt with you 😉 Is that intentional?"
