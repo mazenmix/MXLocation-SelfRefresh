@@ -156,84 +156,80 @@ enum MXVenueOpenData {
     }
 }
 
+// A venue-photo gallery: only pictures from the venue's own site or an
+// exact-name / coordinate OpenStreetMap record. Never show map screenshots.
 struct MXVenuePhotoGallery: View {
     let item: MKMapItem
-    @State private var pictures: [MXVenueVisual] = []
-    @State private var isLoading = true
-
-    private var venueKey: String {
-        let p = item.placemark.coordinate
-        return String(format: "%@:%.6f:%.6f", item.name ?? "", p.latitude, p.longitude)
-    }
+    @ObservedObject private var library = MXVenuePhotoLibrary.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white.opacity(0.06))
-                if pictures.isEmpty && isLoading {
-                    ProgressView().tint(.white)
-                } else if pictures.isEmpty {
-                    ContentUnavailableView("No verified imagery", systemImage: "photo",
-                                           description: Text("This location has no verified photo or map preview yet."))
-                } else {
+                    .fill(Color(red: 0.12, green: 0.19, blue: 0.30))
+                if !library.pictures(item).isEmpty {
                     TabView {
-                        ForEach(pictures) { photo in
+                        ForEach(library.pictures(item)) { photo in
                             ZStack(alignment: .bottomLeading) {
                                 Image(uiImage: photo.image)
                                     .resizable()
                                     .scaledToFill()
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     .clipped()
-                                HStack(spacing: 8) {
+                                HStack(spacing: 7) {
+                                    Image(systemName: "checkmark.seal")
                                     Text(photo.label)
                                     Spacer(minLength: 0)
-                                    if let src = photo.source {
-                                        Link("Source ↗", destination: src)
+                                    if let source = photo.source {
+                                        Link("Source ↗", destination: source)
                                     }
                                 }
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 13)
-                                .frame(height: 40)
-                                .background(.black.opacity(0.68))
+                                .padding(.horizontal, 12)
+                                .frame(height: 42)
+                                .background(.black.opacity(0.75))
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 20))
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .automatic))
                     .accessibilityIdentifier("mxRealVenueSwipeGallery")
+                } else if library.didCheck(item) {
+                    VStack(spacing: 10) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 29, weight: .light))
+                            .foregroundStyle(.white.opacity(0.7))
+                        Text("No confirmed photos for this venue")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Text("We won't substitute a street map or another business's pictures.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.64))
+                            .multilineTextAlignment(.center)
+                        if let website = item.url, website.scheme == "https" {
+                            Link("Check the venue's website ↗", destination: website)
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                    .padding(.horizontal, 25)
+                } else {
+                    VStack(spacing: 10) {
+                        ProgressView().tint(.white)
+                        Text("Finding actual venue photos…")
+                            .font(.caption).foregroundStyle(.white.opacity(0.7))
+                    }
                 }
             }
-            .frame(height: 240)
+            .frame(height: 230)
             .clipShape(RoundedRectangle(cornerRadius: 20))
 
-            Text("Swipe photos • Source-verified venue photos when available; street views and maps are labeled separately.")
-                .font(.caption2).foregroundStyle(.secondary)
+            if !library.pictures(item).isEmpty {
+                Text("Swipe for more • Photos supplied by the venue website or matching public venue records.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
         }
-        .task(id: venueKey) {
-            isLoading = true
-            pictures = []
-            let coordinate = item.placemark.coordinate
-            async let nearby = MXVenueOpenData.streetView(coordinate)
-            async let preview = MXVenueOpenData.mapPreview(coordinate)
-            let metadata = await MXVenueOpenData.lookup(item)
-            for url in metadata.photoURLs.prefix(3) {
-                if let picture = await MXVenueOpenData.photo(url) {
-                    pictures.append(MXVenueVisual(id: url.absoluteString, image: picture,
-                                                  label: "Venue photo · OpenStreetMap source", source: url))
-                }
-            }
-            if let street = await nearby {
-                pictures.append(MXVenueVisual(id: "lookaround", image: street,
-                                              label: "Nearby street view · Apple", source: nil))
-            }
-            if let snap = await preview {
-                pictures.append(MXVenueVisual(id: "map", image: snap,
-                                              label: "Map preview · Apple", source: nil))
-            }
-            isLoading = false
-        }
+        .task(id: MXVenuePhotoSource.key(item)) { library.load(item) }
     }
 }
 
