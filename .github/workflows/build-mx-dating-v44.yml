@@ -1,0 +1,110 @@
+name: Build MX Location Pro Dating 4.4
+
+on:
+  push:
+    branches:
+      - codex/mx-dating-v4-4-fullscreen-adults
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mx-dating-v44-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout MX Location repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.2"
+
+      - name: Checkout pinned Locus
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global http.version HTTP/1.1
+          for attempt in 1 2 3 4; do
+            git clone https://github.com/ChrisMack32/Locus.git Locus-src && break || sleep 10
+          done
+          test -d Locus-src/.git
+          git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
+
+      - name: Apply stable MX engine and Dating Edition
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift scripts/render_user_mx_icon.swift assets/MXAppIcon1024.png
+          python3 scripts/patch_locus_direct.py Locus-src
+          python3 scripts/patch_clean_ui_v123.py Locus-src
+          python3 scripts/patch_v126_features.py Locus-src
+          python3 scripts/patch_v127_features.py Locus-src
+          python3 scripts/patch_v128_features.py Locus-src
+          python3 scripts/patch_v129_features.py Locus-src
+          python3 scripts/patch_v130_features.py Locus-src
+          python3 scripts/patch_v131_features.py Locus-src
+          python3 scripts/patch_v132_features.py Locus-src
+          python3 scripts/patch_v132_restore_helpers.py Locus-src
+          python3 scripts/patch_v133_features.py Locus-src
+          python3 scripts/patch_v140_worlds.py Locus-src
+          python3 scripts/patch_v141_features.py Locus-src
+          python3 scripts/patch_v142_features.py Locus-src
+          python3 scripts/patch_mx_pro.py Locus-src
+          python3 scripts/patch_dating_edition.py Locus-src
+          cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("Locus-src/project.yml")
+          s=p.read_text()
+          assert 'MARKETING_VERSION: "4.0.0"' in s
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.4.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "44"'))
+          PY
+
+      - name: Build for iPhone without code signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          cd Locus-src
+          xcodegen generate
+          xcodebuild -project Locus.xcodeproj -scheme Locus \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM='' \
+            build 2>&1 | tee xcodebuild-mx-dating.log
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          mkdir -p "$RUNNER_TEMP/mx-v44/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app"
+          find "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} + || true
+          find "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app" -name embedded.mobileprovision -type f -delete || true
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
+          (
+            cd "$RUNNER_TEMP/mx-v44"
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.4.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+          )
+          shasum -a 256 MX-Location-Pro-v4.4.0-unsigned.ipa > MX-Location-Pro-v4.4.0-unsigned.ipa.sha256
+
+      - name: Upload installable artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MX-Location-Pro-Dating-v4.4
+          path: |
+            MX-Location-Pro-v4.4.0-unsigned.ipa
+            MX-Location-Pro-v4.4.0-unsigned.ipa.sha256
+            Locus-src/xcodebuild-mx-dating.log
+          if-no-files-found: warn
