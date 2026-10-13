@@ -273,14 +273,16 @@ struct MXPremiumVenueCard: View {
     let category: MXPremiumCategory
     var compact = false
     let action: () -> Void
+    @ObservedObject private var photoLibrary = MXVenuePhotoLibrary.shared
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                MXPremiumVenueImage(coordinate: item.placemark.coordinate,
-                                     symbol: category.symbol, color: category.tint)
-                    .frame(width: compact ? 72 : 90, height: compact ? 72 : 92)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                if !photoLibrary.didCheck(item) || !photoLibrary.pictures(item).isEmpty {
+                    MXVenueRealThumbnail(item: item)
+                        .frame(width: compact ? 82 : 100, height: compact ? 82 : 100)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
                 VStack(alignment: .leading, spacing: 5) {
                     Text(item.name ?? "Nearby venue").font(.subheadline.weight(.bold))
                         .foregroundStyle(.white).lineLimit(2)
@@ -303,6 +305,9 @@ struct MXPremiumVenueCard: View {
             .background(MXPremiumStyle.panel, in: RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)
+        .task(id: MXVenuePhotoSource.key(item)) {
+            photoLibrary.load(item)
+        }
     }
     private var distanceKm: Double {
         let origin = CLLocation(latitude: center.latitude, longitude: center.longitude)
@@ -727,7 +732,7 @@ struct MXPremiumCategoryScreen: View {
         }
                 .mapStyle(.standard(elevation: .realistic))
                 .mapControlVisibility(.hidden)
-                .environment(\.colorScheme, .light)
+                .environment(\.colorScheme, .dark)
                 .accessibilityIdentifier("mxAppleNearbyFullscreen")
             }
         }
