@@ -678,59 +678,74 @@ struct MXPremiumCategoryScreen: View {
         .ignoresSafeArea()
     }
 
+    // Floating chips keep the map visible without the former full-width grey card.
     private var glassFilters: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Image(systemName: category.symbol)
-                    .foregroundStyle(category.tint)
-                Text(category.title)
-                    .font(.headline.weight(.bold))
-                Spacer()
-                Text("\(model.places.count) places")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(MXPremiumStyle.muted)
-            }
+        VStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: 7) {
                     ForEach(filters, id: \.self) { choice in
                         Button {
-                            subfilter = choice
+                            withAnimation(.easeInOut(duration: 0.18)) { subfilter = choice }
                         } label: {
                             Text(choice)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 11)
-                                .frame(height: 32)
-                                .background(subfilter == choice ?
-                                    category.tint.opacity(0.8) : MXPremiumStyle.panelRaised,
-                                    in: Capsule())
+                                .padding(.horizontal, 13)
+                                .frame(height: 34)
+                                .background(
+                                    subfilter == choice ? category.tint : .black.opacity(0.68),
+                                    in: Capsule()
+                                )
+                                .overlay(Capsule().stroke(.white.opacity(0.10)))
                         }
                         .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, 14)
             }
-            HStack(spacing: 9) {
-                Label(model.areaName, systemImage: "mappin.circle")
-                    .font(.caption2)
+
+            HStack(spacing: 8) {
+                Image(systemName: "mappin.circle.fill")
+                    .foregroundStyle(category.tint)
+                Text(model.areaName)
                     .lineLimit(1)
-                Spacer()
-                Text("\(Int(radius)) km")
-                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.white)
+                Spacer(minLength: 4)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        radiusVisible.toggle()
+                    }
+                } label: {
+                    Label("\(Int(radius)) km", systemImage: "slider.horizontal.3")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Adjust search radius")
             }
-            .foregroundStyle(MXPremiumStyle.muted)
-            Slider(value: $radius, in: 1...25, step: 1)
-                .tint(category.tint)
-            if category == .adultVenues {
-                Text("18+ · Verify admission, consent policies, current business status and local law with the venue.")
-                    .font(.caption2)
-                    .foregroundStyle(MXPremiumStyle.muted)
+            .font(.caption)
+            .padding(.horizontal, 13)
+            .frame(height: 37)
+            .background(.black.opacity(0.66), in: Capsule())
+            .padding(.horizontal, 14)
+
+            if radiusVisible {
+                HStack(spacing: 9) {
+                    Text("1")
+                    Slider(value: $radius, in: 1...25, step: 1)
+                        .tint(category.tint)
+                    Text("25 km")
+                }
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 13)
+                .frame(height: 40)
+                .background(.black.opacity(0.68), in: Capsule())
+                .padding(.horizontal, 14)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.12)))
-        .padding(.horizontal, 12)
-        .padding(.top, 9)
+        .accessibilityIdentifier("mxCompactFloatingVenueFilters")
     }
 
     private var resultsSheet: some View {
