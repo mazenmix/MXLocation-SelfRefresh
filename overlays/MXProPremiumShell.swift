@@ -146,7 +146,7 @@ final class MXPremiumPlacesModel: ObservableObject {
     }
 }
 
-private struct MXPremiumPanel<Content: View>: View {
+struct MXPremiumPanel<Content: View>: View {
     let content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
@@ -221,7 +221,7 @@ struct MXPremiumVenueImage: View {
             options.size = CGSize(width: 260, height: 260)
             let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
             if let result = try? await snapshotter.snapshot {
-                image = result
+                image = result.image
             }
         }
     }
