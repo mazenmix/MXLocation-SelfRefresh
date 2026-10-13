@@ -1,4 +1,4 @@
-name: Build MX Location Pro Venue Discovery 4.8.0
+name: Build MX Location Pro Real Venue Photos 4.9.0
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.8.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "80"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "90"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -183,7 +183,7 @@ jobs:
           assert '.ignoresSafeArea(.container, edges: .all)' in section
           assert 'selectedVenue = item' in section
           assert 'mapPosition = .region(' in section
-          assert '.environment(\\.colorScheme, .light)' in section
+          assert '.environment(\\.colorScheme, .dark)' in section
           assert 'MXMapProviderPicker' not in section
           assert 'MXMapSettingsScreen()' in shell
           assert 'Apple Maps' in provider and 'OpenStreetMap' in provider
@@ -199,13 +199,22 @@ jobs:
           p=Path("Locus-src/Locus/Features/Map")
           shell=(p/"MXProPremiumShell.swift").read_text()
           profile=(p/"MXVenueEnrichment.swift").read_text()
+          photo=(p/"MXVenuePhotos.swift").read_text()
           edition=(p/"MXDatingEdition.swift").read_text()
           assert 'selfCare' in shell and 'case .selfCare:' in shell, 'self-care category missing'
           assert '"Foot Spa"' in shell and '"Massage"' in shell and '"Nails"' in shell
           assert '"security"' in shell and '"allied services"' in shell, 'Adult venue false positive filter missing'
           assert 'MXVenuePhotoGallery(item: item)' in shell and 'MXVenueContactDetails(item: item)' in shell
-          assert 'MXPremiumVenueImage' in shell and 'MXVenueOpenData.mapPreview' in shell
+          assert 'MXVenueRealThumbnail(item: item)' in shell and 'MXVenuePhotoGallery(item: item)' in shell
           assert 'mxRealVenueSwipeGallery' in profile and 'mxCopyLatLong' in profile
+          assert 'MXVenuePhotoLibrary' in photo and 'MXVenueRealThumbnail' in photo
+          assert 'metadataImages(' in photo and 'imagesFromWebsite(' in photo
+          assert 'normalized(found) == normalized(name)' in profile
+          gallery=profile[profile.index('struct MXVenuePhotoGallery: View {'):profile.index('struct MXVenueContactDetails: View {')]
+          assert 'mapPreview' not in gallery and 'streetView' not in gallery, 'Map or street preview leaked into photo gallery'
+          assert 'MXVenueRealThumbnail(item: item)' in shell, 'Nearby rows still not using actual photos'
+          assert 'https://tiles.openfreemap.org/styles/liberty' in (p/'MXOpenStreetMapProvider.swift').read_text()
+          print('Photo-only previews, official website source lookup and dark Apple maps checked.')
           assert 'contact:whatsapp' in profile and 'contact:facebook' in profile
           assert 'normalized(found) == normalized(name)' in profile, 'Unverified OSM identity match'
           assert '.fullScreenCover(isPresented: $navigation.openCategory)' in edition, 'Category must cover tab bar completely'
@@ -240,17 +249,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.8.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.8.0-unsigned.ipa > MX-Location-Pro-v4.8.0-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.9.0-unsigned.ipa > MX-Location-Pro-v4.9.0-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.8.0
+          name: MX-Location-Pro-Dating-v4.9.0
           path: |
-            MX-Location-Pro-v4.8.0-unsigned.ipa
-            MX-Location-Pro-v4.8.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.9.0-unsigned.ipa
+            MX-Location-Pro-v4.9.0-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
