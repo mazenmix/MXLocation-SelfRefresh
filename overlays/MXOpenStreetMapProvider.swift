@@ -56,7 +56,8 @@ struct MXOpenStreetMapCanvas: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onTap: onTap) }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let style = URL(string: "https://tiles.openfreemap.org/styles/liberty")
+        // Dark style is supplied by OpenFreeMap without a token or billing.
+        let style = URL(string: "https://tiles.openfreemap.org/styles/dark")
         let map = MLNMapView(frame: .zero, styleURL: style)
         map.delegate = context.coordinator
         map.logoView.isHidden = false
@@ -114,6 +115,106 @@ struct MXOpenStreetMapCanvas: UIViewRepresentable {
                     return marker
                 }
                 previousActive = activeKey
+            }
+        }
+    }
+}
+
+// One rendering engine for *every* venue category: 18+, Date Spots,
+// After Dark, Social Radar, cafés, stays and more. Venue discovery remains
+// Apple MKLocalSearch, while selected map tiles follow the user's preference.
+struct MXOpenStreetVenueMapCanvas: UIViewRepresentable {
+    let center: CLLocationCoordinate2D?
+    let venues: [MKMapItem]
+    let focusedVenue: CLLocationCoordinate2D?
+    let onSelectVenue: (MKMapItem) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onSelectVenue: onSelectVenue)
+    }
+
+    func makeUIView(context: Context) -> MLNMapView {
+        let map = MLNMapView(
+            frame: .zero,
+            styleURL: URL(string: "https://tiles.openfreemap.org/styles/dark")
+        )
+        map.backgroundColor = UIColor(red: 0.055, green: 0.075, blue: 0.11, alpha: 1)
+        map.delegate = context.coordinator
+        map.logoView.isHidden = false
+        map.attributionButton.isHidden = false
+        map.isRotateEnabled = true
+        let initial = center ?? CLLocationCoordinate2D(latitude: 14.5995, longitude: 120.9842)
+        map.setCenter(initial, zoomLevel: 12.8, animated: false)
+        context.coordinator.refresh(map, center: center, venues: venues, focused: focusedVenue)
+        return map
+    }
+
+    func updateUIView(_ map: MLNMapView, context: Context) {
+        context.coordinator.onSelectVenue = onSelectVenue
+        context.coordinator.refresh(map, center: center, venues: venues, focused: focusedVenue)
+    }
+
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+        var onSelectVenue: (MKMapItem) -> Void
+        private var markers: [MLNPointAnnotation] = []
+        private var mappedItems: [MKMapItem] = []
+        private var markerSignature = ""
+        private var centerSignature = ""
+        private var focusSignature = ""
+
+        init(onSelectVenue: @escaping (MKMapItem) -> Void) {
+            self.onSelectVenue = onSelectVenue
+        }
+
+        func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
+            guard let selected = annotation as? MLNPointAnnotation,
+                  let index = markers.firstIndex(where: { $0 === selected }),
+                  mappedItems.indices.contains(index) else { return }
+            onSelectVenue(mappedItems[index])
+        }
+
+        func refresh(_ map: MLNMapView,
+                     center: CLLocationCoordinate2D?,
+                     venues: [MKMapItem],
+                     focused: CLLocationCoordinate2D?) {
+            let signature = venues.map { item in
+                let c = item.placemark.coordinate
+                return "\(item.name ?? "Venue"):\(c.latitude):\(c.longitude)"
+            }.joined(separator: ";")
+            if signature != markerSignature {
+                if !markers.isEmpty {
+                    map.removeAnnotations(markers)
+                }
+                mappedItems = venues
+                markers = venues.map { item in
+                    let pin = MLNPointAnnotation()
+                    pin.coordinate = item.placemark.coordinate
+                    pin.title = item.name ?? "Place"
+                    pin.subtitle = item.placemark.title
+                    return pin
+                }
+                if !markers.isEmpty { map.addAnnotations(markers) }
+                markerSignature = signature
+            }
+
+            let newCenter = center.map {
+                String(format: "%.6f:%.6f", $0.latitude, $0.longitude)
+            } ?? ""
+            if !newCenter.isEmpty && newCenter != centerSignature {
+                if let center {
+                    map.setCenter(center, zoomLevel: 12.8, animated: false)
+                }
+                centerSignature = newCenter
+            }
+
+            let newFocus = focused.map {
+                String(format: "%.6f:%.6f", $0.latitude, $0.longitude)
+            } ?? ""
+            if !newFocus.isEmpty && newFocus != focusSignature {
+                if let focused {
+                    map.setCenter(focused, zoomLevel: 15.2, animated: true)
+                }
+                focusSignature = newFocus
             }
         }
     }
