@@ -56,8 +56,8 @@ struct MXOpenStreetMapCanvas: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onTap: onTap) }
 
     func makeUIView(context: Context) -> MLNMapView {
-        // Dark style is supplied by OpenFreeMap without a token or billing.
-        let style = URL(string: "https://tiles.openfreemap.org/styles/dark")
+        // OpenFreeMap Liberty is a colorful daytime-style map, independent of the app's dark UI.
+        let style = URL(string: "https://tiles.openfreemap.org/styles/liberty")
         let map = MLNMapView(frame: .zero, styleURL: style)
         map.delegate = context.coordinator
         map.logoView.isHidden = false
@@ -136,9 +136,9 @@ struct MXOpenStreetVenueMapCanvas: UIViewRepresentable {
     func makeUIView(context: Context) -> MLNMapView {
         let map = MLNMapView(
             frame: .zero,
-            styleURL: URL(string: "https://tiles.openfreemap.org/styles/dark")
+            styleURL: URL(string: "https://tiles.openfreemap.org/styles/liberty")
         )
-        map.backgroundColor = UIColor(red: 0.055, green: 0.075, blue: 0.11, alpha: 1)
+        map.backgroundColor = UIColor(red: 0.91, green: 0.94, blue: 0.92, alpha: 1)
         map.delegate = context.coordinator
         map.logoView.isHidden = false
         map.attributionButton.isHidden = false
