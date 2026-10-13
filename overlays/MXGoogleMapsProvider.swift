@@ -254,6 +254,7 @@ struct MXGoogleMapSetupSheet: View {
     @EnvironmentObject private var mapChoice: MXMapChoiceStore
     @Environment(\.dismiss) private var dismiss
     @State private var apiKey = ""
+    @State private var showLegalNotices = false
 
     var body: some View {
         NavigationStack {
@@ -290,6 +291,9 @@ struct MXGoogleMapSetupSheet: View {
                     }
                     Text("Enable Maps SDK for iOS and billing in Google Cloud. Restrict this key to iOS bundle com.mazenmix.mxlocationpro and Maps SDK for iOS.")
                         .font(.caption).foregroundStyle(.secondary)
+                    Button("Google Maps third-party notices") {
+                        showLegalNotices = true
+                    }
                     Text("Apple Maps remains available without any Google key.")
                         .font(.caption).foregroundStyle(.secondary)
                     if !mapChoice.feedback.isEmpty {
@@ -306,5 +310,20 @@ struct MXGoogleMapSetupSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .sheet(isPresented: $showLegalNotices) {
+            NavigationStack {
+                ScrollView {
+                    Text(GMSServices.openSourceLicenseInfo())
+                        .font(.footnote)
+                        .padding(18)
+                }
+                .navigationTitle("Google Maps Notices")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { showLegalNotices = false }
+                    }
+                }
+            }
+        }
     }
 }
