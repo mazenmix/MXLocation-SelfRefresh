@@ -1,4 +1,4 @@
-name: Build MX Location Pro Real Venue Photos 4.9.0
+name: Build MX Location Pro Real Venue Photos 4.9.1
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "90"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.1"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "91"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -222,6 +222,25 @@ jobs:
           print('Self-care, realistic images, contact sources, coordinates, natural colors, and fullscreen verified')
           PY
 
+      - name: Verify finite loading and prioritized venue photos
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("Locus-src/Locus/Features/Map")
+          photos=(p/"MXVenuePhotos.swift").read_text()
+          gallery=(p/"MXVenueEnrichment.swift").read_text()
+          assert "armUIWatchdog(for: key)" in photos, "Venue photos can spin forever"
+          assert "7_000_000_000" in photos, "Bounded loading deadline missing"
+          assert "checked.insert(key)" in photos, "Fallback missing"
+          assert "withTaskGroup(of: [MXVenueVisual].self)" in photos, "Photo sources still serial"
+          assert "priorityRequests" in photos, "Selected venue cannot skip stalled queue"
+          assert "load(item, priority: true)" in gallery, "Gallery not prioritized"
+          assert "MXVenuePhotoSource.osmPictures" in photos and "MXVenuePhotoSource.websitePictures" in photos
+          assert "mapPreview" not in gallery[gallery.index("struct MXVenuePhotoGallery"):gallery.index("struct MXVenueContactDetails")]
+          print("Photo loading deadline, background results, immediate publishing and priority venue fetch OK")
+          PY
+
       - name: Build for iPhone without code signing
         shell: bash
         run: |
@@ -249,17 +268,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.1-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.9.0-unsigned.ipa > MX-Location-Pro-v4.9.0-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.9.1-unsigned.ipa > MX-Location-Pro-v4.9.1-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.9.0
+          name: MX-Location-Pro-Dating-v4.9.1
           path: |
-            MX-Location-Pro-v4.9.0-unsigned.ipa
-            MX-Location-Pro-v4.9.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.9.1-unsigned.ipa
+            MX-Location-Pro-v4.9.1-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
