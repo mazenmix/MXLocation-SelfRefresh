@@ -1,6 +1,8 @@
 import SwiftUI
 import MapKit
 import UIKit
+import CoreLocation
+import ImageIO
 
 // Only use photographs explicitly tied to the matching OpenStreetMap entry or
 // published by the venue's own website. Never turn a map/street snapshot or a
@@ -8,13 +10,17 @@ import UIKit
 enum MXVenuePhotoSource {
     static func key(_ item: MKMapItem) -> String {
         let p = item.placemark.coordinate
-        return String(format: "%@|%.5f|%.5f", item.name ?? "", p.latitude, p.longitude)
+        // Switching or replacing a Google Places key retries venues immediately.
+        let keyRevision = (UserDefaults.standard.string(forKey: "mx_places_photo_api_key") ?? "").hashValue
+        return String(format: "%@|%.5f|%.5f|%d", item.name ?? "", p.latitude, p.longitude, keyRevision)
     }
 
     // Independent source pipelines: publish website imagery as soon as it arrives,
     // without waiting for slow OpenStreetMap queries to finish.
     static func websitePictures(for item: MKMapItem) async -> [MXVenueVisual] {
-        guard let official = item.url.flatMap({ MXVenueOpenProfile.officialURL($0.absoluteString) })
+        guard let official = item.url.flatMap({ MXVenueOpenProfile.officialURL($0.absoluteString) }),
+              let host = official.host?.lowercased(),
+              !host.contains("maps.apple.com"), !host.contains("google.com/maps")
         else { return [] }
         return await imagesFromWebsite(official, label: "Image · venue's official website")
     }
@@ -37,6 +43,106 @@ enum MXVenuePhotoSource {
             pictures += await imagesFromWebsite(site, label: "Image · venue's official website")
         }
         return pictures
+    }
+
+    // Opt-in Google Places Photos (New) provider. Never put API keys into a
+    // public build or GitHub source. The owner adds their own key in Settings.
+    // Match BOTH normalized business name and location before accepting photos.
+    // Google Places API calls can be billable.
+    static func googlePlacesPictures(for item: MKMapItem) async -> [MXVenueVisual] {
+        let apiKey = (UserDefaults.standard.string(forKey: "mx_places_photo_api_key") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty, let name = item.name, !name.isEmpty else { return [] }
+        let coordinate = item.placemark.coordinate
+        let addr = item.placemark.title ?? ""
+        let search = name + ", " + addr
+        let payload: [String: Any] = [
+            "textQuery": search,
+            "locationBias": [
+                "circle": [
+                    "center": ["latitude": coordinate.latitude,
+                               "longitude": coordinate.longitude],
+                    "radius": 300.0
+                ]
+            ],
+            "maxResultCount": 5
+        ]
+        guard let requestData = try? JSONSerialization.data(withJSONObject: payload),
+              let url = URL(string: "https://places.googleapis.com/v1/places:searchText")
+        else { return [] }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = requestData
+        req.timeoutInterval = 8
+        req.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        req.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
+        req.setValue("places.id,places.displayName,places.location,places.photos", forHTTPHeaderField: "X-Goog-FieldMask")
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              data.count < 750_000,
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let matches = root["places"] as? [[String: Any]] else { return [] }
+
+        func normalized(_ text: String) -> String {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .lowercased()
+                .filter { $0.isLetter || $0.isNumber || $0.isWhitespace }
+                .split(whereSeparator: \.isWhitespace)
+                .joined(separator: " ")
+        }
+        let originalName = normalized(name)
+        for match in matches {
+            guard let displayName = match["displayName"] as? [String: Any],
+                  let foundName = displayName["text"] as? String,
+                  normalized(foundName) == originalName,
+                  let geo = match["location"] as? [String: Any],
+                  let lat = geo["latitude"] as? Double,
+                  let lng = geo["longitude"] as? Double,
+                  CLLocation(latitude: lat, longitude: lng).distance(
+                      from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                  ) <= 180,
+                  let photos = match["photos"] as? [[String: Any]],
+                  !photos.isEmpty else { continue }
+            let placeID = match["id"] as? String ?? ""
+            let googleMapsLink = URLComponents(string: "https://www.google.com/maps/search/").flatMap { base -> URL? in
+                var result = base
+                result.queryItems = [
+                    URLQueryItem(name: "api", value: "1"),
+                    URLQueryItem(name: "query", value: name),
+                    URLQueryItem(name: "query_place_id", value: placeID)
+                ]
+                return result.url
+            }
+            var pictures: [MXVenueVisual] = []
+            for (index, entry) in photos.prefix(5).enumerated() {
+                guard let resource = entry["name"] as? String,
+                      resource.hasPrefix("places/"),
+                      let media = URL(string: "https://places.googleapis.com/v1/" + resource + "/media?maxWidthPx=1000") else { continue }
+                var imageReq = URLRequest(url: media)
+                imageReq.timeoutInterval = 9
+                imageReq.setValue(apiKey, forHTTPHeaderField: "X-Goog-Api-Key")
+                guard let (bytes, imageResponse) = try? await URLSession.shared.data(for: imageReq),
+                      (imageResponse as? HTTPURLResponse)?.statusCode == 200,
+                      bytes.count < 7_000_000,
+                      let source = CGImageSourceCreateWithData(bytes as CFData, nil) else { continue }
+                let options: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 1000
+                ]
+                guard let reduced = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+                else { continue }
+                let authors = (entry["authorAttributions"] as? [[String: Any]] ?? [])
+                    .compactMap { $0["displayName"] as? String }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: ", ")
+                let label = authors.isEmpty ? "Photo · Google Places" : "Photo · Google Places · " + authors
+                pictures.append(MXVenueVisual(id: "google-\(placeID)-\(index)",
+                   image: UIImage(cgImage: reduced), label: label, source: googleMapsLink))
+            }
+            return pictures
+        }
+        return []
     }
 
     // The linked Wikidata P18 image is a second, free, identity-verified source.
@@ -228,6 +334,7 @@ final class MXVenuePhotoLibrary: ObservableObject {
         await withTaskGroup(of: [MXVenueVisual].self) { group in
             group.addTask { await MXVenuePhotoSource.websitePictures(for: item) }
             group.addTask { await MXVenuePhotoSource.osmPictures(for: item) }
+            group.addTask { await MXVenuePhotoSource.googlePlacesPictures(for: item) }
             for await photos in group {
                 add(photos, for: key)
             }
