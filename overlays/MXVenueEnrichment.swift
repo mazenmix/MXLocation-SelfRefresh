@@ -138,7 +138,7 @@ enum MXVenueOpenData {
         let options = MKLookAroundSnapshotter.Options()
         options.size = CGSize(width: 850, height: 540)
         let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
-        let snapshot = try? await snapshotter.snapshot()
+        let snapshot = try? await snapshotter.snapshot
         return snapshot?.image
     }
 
