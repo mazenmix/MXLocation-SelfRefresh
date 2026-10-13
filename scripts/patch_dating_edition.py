@@ -103,7 +103,7 @@ map_overlay = """        .overlay(alignment: .top) {
             }
         }
 """
-appear = "        .onAppear {\\n"
+appear = "        .onAppear {" + chr(10)
 if map_text.count(appear) < 1:
     raise RuntimeError("Map onAppear anchor missing")
 map_text = map_text.replace(appear, map_overlay + appear, 1)
