@@ -200,7 +200,7 @@ jobs:
           shell=(p/"MXProPremiumShell.swift").read_text()
           profile=(p/"MXVenueEnrichment.swift").read_text()
           edition=(p/"MXDatingEdition.swift").read_text()
-          assert 'case selfCare' in shell, 'self-care category missing'
+          assert 'selfCare' in shell and 'case .selfCare:' in shell, 'self-care category missing'
           assert '"Foot Spa"' in shell and '"Massage"' in shell and '"Nails"' in shell
           assert '"security"' in shell and '"allied services"' in shell, 'Adult venue false positive filter missing'
           assert 'MXVenuePhotoGallery(item: item)' in shell and 'MXVenueContactDetails(item: item)' in shell
