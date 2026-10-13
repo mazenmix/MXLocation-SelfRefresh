@@ -92,7 +92,7 @@ final class MXPremiumPlacesModel: ObservableObject {
     @Published var areaName = "Selected destination"
 
     private var activeRequest = UUID()
-    func search(around center: CLLocationCoordinate2D, category: MXPremiumCategory, radiusKm: Double) async {
+    func search(around center: CLLocationCoordinate2D, category: MXPremiumCategory, radiusKm: Double, customTerm: String? = nil) async {
         guard CLLocationCoordinate2DIsValid(center) else { return }
         let marker = UUID()
         activeRequest = marker
@@ -104,7 +104,7 @@ final class MXPremiumPlacesModel: ObservableObject {
         async let namedArea: Void = resolveName(center, token: marker)
         let origin = CLLocation(latitude: center.latitude, longitude: center.longitude)
         var gathered: [MKMapItem] = []
-        for term in category.searchTerms {
+        for term in (customTerm.map { [$0] } ?? category.searchTerms) {
             guard activeRequest == marker else { return }
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = term
@@ -482,14 +482,46 @@ struct MXPremiumCategoryScreen: View {
     @EnvironmentObject private var session: SpoofSession
     @StateObject private var model = MXPremiumPlacesModel()
     @State private var radius = 5.0
+    @State private var subfilter = "All"
     @State private var selectedVenue: MKMapItem?
 
     private var center: CLLocationCoordinate2D? {
         session.pin ?? session.simulated ?? session.realCoordinate
     }
+    private var filters: [String] {
+        switch category {
+        case .dateSpots: ["All", "Restaurants", "Rooftops", "Lounges"]
+        case .socialRadar: ["All", "Cafés", "Groups", "Activities"]
+        case .nightlife: ["All", "Bars", "Clubs", "Lounges", "Live Music"]
+        case .cafes: ["All", "Coffee", "Dessert", "Quiet"]
+        case .activities: ["All", "Museums", "Outdoors", "Games"]
+        case .jazz: ["All", "Jazz", "Live Music", "Lounge"]
+        }
+    }
+    private var customSearch: String? {
+        guard subfilter != "All" else { return nil }
+        switch subfilter {
+        case "Restaurants": return "romantic restaurant"
+        case "Rooftops": return "rooftop lounge"
+        case "Lounges", "Lounge": return "lounge"
+        case "Cafés", "Coffee": return "coffee shop"
+        case "Groups": return "community event venue"
+        case "Activities": return "social activity center"
+        case "Bars": return "bar"
+        case "Clubs": return "nightclub"
+        case "Live Music": return "live music bar"
+        case "Dessert": return "dessert cafe"
+        case "Quiet": return "quiet cafe"
+        case "Museums": return "museum"
+        case "Outdoors": return "public park"
+        case "Games": return "bowling arcade"
+        case "Jazz": return "jazz club"
+        default: return nil
+        }
+    }
     private var key: String {
         guard let c = center else { return "none" }
-        return String(format: "%.5f:%.5f:%@:%.0f", c.latitude, c.longitude, category.rawValue, radius)
+        return String(format: "%.5f:%.5f:%@:%.0f:%@", c.latitude, c.longitude, category.rawValue, radius, subfilter)
     }
     var body: some View {
         ScrollView {
@@ -501,6 +533,23 @@ struct MXPremiumCategoryScreen: View {
                         Text(category.title).font(.title2.weight(.bold))
                         Text(category.subtitle)
                             .font(.caption).foregroundStyle(MXPremiumStyle.muted)
+                    }
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(filters, id: \.self) { option in
+                            Button {
+                                subfilter = option
+                            } label: {
+                                Text(option)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 13).padding(.vertical, 9)
+                                    .background(subfilter == option ? category.tint.opacity(0.35) :
+                                                    MXPremiumStyle.panel,
+                                                in: Capsule())
+                                    .foregroundStyle(subfilter == option ? .white : MXPremiumStyle.muted)
+                            }.buttonStyle(.plain)
+                        }
                     }
                 }
                 MXPremiumPanel {
@@ -519,6 +568,12 @@ struct MXPremiumCategoryScreen: View {
                         longitudinalMeters: radius * 2000
                     ))) {
                         Marker("Selected", coordinate: c).tint(MXPremiumStyle.cyan)
+                        if category == .socialRadar {
+                            ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
+                                MapCircle(center: item.placemark.coordinate, radius: 240)
+                                    .foregroundStyle(Color.orange.opacity(0.22))
+                            }
+                        }
                         ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
                             Marker(item.name ?? "Venue", coordinate: item.placemark.coordinate)
                                 .tint(category.tint)
@@ -528,6 +583,8 @@ struct MXPremiumCategoryScreen: View {
                     .frame(height: 215)
                     .clipShape(RoundedRectangle(cornerRadius: 19))
                     if category == .socialRadar {
+                        Label("Orange areas represent mapped venues, not live people.", systemImage: "circle.hexagongrid.fill")
+                            .font(.caption2).foregroundStyle(.orange)
                         Text("Social Radar maps public gathering venues—not crowds, gender, or singles locations.")
                             .font(.caption2).foregroundStyle(MXPremiumStyle.muted)
                     }
@@ -552,7 +609,7 @@ struct MXPremiumCategoryScreen: View {
             if let item = selectedVenue { MXPremiumVenueDetails(item: item) }
         }
         .task(id: key) {
-            if let c = center { await model.search(around: c, category: category, radiusKm: radius) }
+            if let c = center { await model.search(around: c, category: category, radiusKm: radius, customTerm: customSearch) }
         }
     }
 }
