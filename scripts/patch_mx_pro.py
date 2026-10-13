@@ -49,7 +49,7 @@ state_anchor = "    @State private var resolvingPin = false"
 if map_source.count(state_anchor) != 1:
     raise RuntimeError("MapHomeView location-state anchor not found exactly once")
 map_source = map_source.replace(state_anchor, state_anchor + '\n    @State private var showMXProHub = false', 1)
-search_anchor = "                searchBar\\n"
+search_anchor = "                searchBar\n"
 if map_source.count(search_anchor) != 1:
     raise RuntimeError("MapHomeView search bar insertion anchor not found exactly once")
 pro_button = """                HStack(spacing: 8) {
@@ -72,15 +72,15 @@ pro_button = """                HStack(spacing: 8) {
                 }
 """
 map_source = map_source.replace(search_anchor, pro_button, 1)
-sheet_anchor = "        .onAppear {\\n"
+sheet_anchor = "        .onAppear {\n"
 if map_source.count(sheet_anchor) < 1:
     raise RuntimeError("MapHomeView view-modifier anchor missing")
 map_source = map_source.replace(sheet_anchor,
-    "        .sheet(isPresented: $showMXProHub) {\\n"
-    "            MXProSuiteView()\\n"
-    "                .environmentObject(session)\\n"
-    "                .environmentObject(pairing)\\n"
-    "        }\\n" + sheet_anchor, 1)
+    "        .sheet(isPresented: $showMXProHub) {\n"
+    "            MXProSuiteView()\n"
+    "                .environmentObject(session)\n"
+    "                .environmentObject(pairing)\n"
+    "        }\n" + sheet_anchor, 1)
 map_home.write_text(map_source, encoding="utf-8")
 print("MX Pro launch button added to Map and sheet route verified.")
 
