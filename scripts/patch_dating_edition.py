@@ -220,15 +220,15 @@ new_bottom = """                    if !searchFocused {
 if map_text.count(old_bottom) != 1:
     raise RuntimeError("Bottom map controls anchor missing")
 map_text = map_text.replace(old_bottom, new_bottom, 1)
-end_anchor = ("            .padding(.bottom, 2)" + chr(10) +
-              "        }" + chr(10) + "        .overlay(alignment: .top) {")
-if map_text.count(end_anchor) != 1:
-    raise RuntimeError("Map search geometry boundary missing")
-map_text = map_text.replace(end_anchor,
-    "                .padding(.bottom, 2)" + chr(10) +
-    "            }" + chr(10) +
-    "        }" + chr(10) +
-    "        .overlay(alignment: .top) {", 1)
+# Close the added GeometryReader immediately before the outer ZStack close.
+# Other MX patches change bottom padding, so do not rely on that number.
+overlay_start = map_text.find("        .overlay(alignment: .top) {")
+if overlay_start < 0:
+    raise RuntimeError("Top toast overlay missing")
+outer_close = map_text.rfind("        }" + chr(10), 0, overlay_start)
+if outer_close < 0 or overlay_start - outer_close > 90:
+    raise RuntimeError("Cannot locate map ZStack closure safely")
+map_text = map_text[:outer_close] + "            }" + chr(10) + map_text[outer_close:]
 map_text = map_text.replace(
     '        .onAppear {' + chr(10) + '            session.startLocationUpdates()',
     '''        .onChange(of: searchFocused) { _, focused in
