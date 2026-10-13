@@ -19,9 +19,12 @@ replacement = '''struct MXProPremiumRoot: View {
             MXDatingExploreHome()
                 .tabItem { Label("Explore", systemImage: "map.fill") }
                 .tag(0)
+            MXSavedView(selectedTab: $navigation.tab)
+                .tabItem { Label("Saved", systemImage: "star.fill") }
+                .tag(1)
             MXDatingWingmanScreen()
                 .tabItem { Label("Wingman", systemImage: "heart.text.square.fill") }
-                .tag(1)
+                .tag(2)
         }
         .environmentObject(navigation)
         .tint(MXPremiumStyle.cyan)
@@ -72,3 +75,60 @@ map_file.write_text(map_text, encoding="utf-8")
 assert 'MXDatingWingmanScreen()' in shell.read_text(encoding='utf-8')
 assert 'MXDatingExploreHome()' in shell.read_text(encoding='utf-8')
 print("Dating Edition 4.4: Explore/Wingman tabs; full-screen venue maps, GPS actions on Map.")
+
+# Saved Worlds restoration and transient toast.
+# Move the legacy banner out of the vertical map stack; it must not push
+# the map/search down or remain in the middle of the map.
+map_text = map_file.read_text(encoding="utf-8")
+embedded = """                if showWorldActiveBanner, let world = activeWorldBanner {
+                    worldActiveBanner(world)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+"""
+if map_text.count(embedded) != 1:
+    raise RuntimeError("World Active banner must occur exactly once in map stack")
+map_text = map_text.replace(embedded, "", 1)
+map_overlay = """        .overlay(alignment: .top) {
+            if showWorldActiveBanner, let world = activeWorldBanner {
+                worldActiveBanner(world)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 1)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+                    .zIndex(50)
+                    .allowsHitTesting(false)
+            }
+        }
+"""
+appear = "        .onAppear {\\n"
+if map_text.count(appear) < 1:
+    raise RuntimeError("Map onAppear anchor missing")
+map_text = map_text.replace(appear, map_overlay + appear, 1)
+# A compact toast does not need the local clock: date/time remains in Saved.
+map_text = map_text.replace('''                HStack(spacing: 5) {
+                    Text("Local time")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    MXWorldLocalClockBadge(place: world)
+                }
+''', "", 1)
+map_text = map_text.replace('''        .frame(height: 64)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+''', '''        .frame(height: 54)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+''', 1)
+map_text = map_text.replace('''try? await Task.sleep(nanoseconds: 2_700_000_000)''',
+                            '''try? await Task.sleep(nanoseconds: 1_900_000_000)''', 1)
+# Do not present confirmation every time the user enters Explore after app launches.
+map_text = map_text.replace('''            if session.isSpoofing,
+               let simulated = session.simulated,
+               let world = matchingWorld(for: simulated) {
+                triggerWorldActiveBanner(world)
+            }
+
+''', "", 1)
+map_file.write_text(map_text, encoding="utf-8")
+print("Dating Edition: Saved favorites/tab and 1.9-second top transient World Active toast.")
