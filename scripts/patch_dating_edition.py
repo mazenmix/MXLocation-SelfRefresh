@@ -415,6 +415,7 @@ switched_map = '''            if mapChoice.selected == .osm {
                         choosePin(coordinate, name: nil, subtitle: nil, zoom: false)
                     }
                 )
+                .ignoresSafeArea(.container, edges: [.top, .bottom])
                 .accessibilityIdentifier("mxOpenStreetMapCanvas")
                 .transition(.opacity)
             } else {
