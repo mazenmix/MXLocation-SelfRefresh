@@ -504,7 +504,14 @@ struct MXPremiumCategoryScreen: View {
     @State private var radius = 5.0
     @State private var subfilter = "All"
     @State private var selectedVenue: MKMapItem?
-    @State private var sheetExpanded = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var detent: NearbyDetent = .medium
+    @GestureState private var draggingSheet: CGFloat = 0
+    @State private var radiusVisible = false
+
+    private enum NearbyDetent: CaseIterable {
+        case collapsed, medium, expanded
+    }
     @State private var mapPosition: MapCameraPosition = .automatic
 
     private var center: CLLocationCoordinate2D? {
@@ -570,18 +577,26 @@ struct MXPremiumCategoryScreen: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            fullScreenMap
-            VStack(spacing: 0) {
-                glassFilters
-                Spacer(minLength: 0)
-                resultsSheet
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                fullScreenMap.ignoresSafeArea()
+                VStack(spacing: 8) {
+                    floatingHeader
+                    glassFilters
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, max(geometry.safeAreaInsets.top, 18) + 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                resultsSheet(availableHeight: geometry.size.height)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .background(MXPremiumStyle.background)
+            .ignoresSafeArea()
         }
-        .background(MXPremiumStyle.background)
-        .navigationTitle(category.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .navigationBarBackButtonHidden(true)
         .sheet(isPresented: Binding(
             get: { selectedVenue != nil },
             set: { if !$0 { selectedVenue = nil } }
@@ -599,6 +614,36 @@ struct MXPremiumCategoryScreen: View {
                                    radiusKm: radius, customTerm: customSearch)
             }
         }
+    }
+
+    private var floatingHeader: some View {
+        HStack(spacing: 10) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.black.opacity(0.42), in: Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.14)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to Explore")
+            Spacer(minLength: 0)
+            Text(category.title)
+                .font(.system(size: 18, weight: .bold))
+                .lineLimit(1)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.6), radius: 7)
+            Spacer(minLength: 0)
+            Text("\(model.places.count)")
+                .font(.caption.weight(.bold).monospacedDigit())
+                .foregroundStyle(.white)
+                .frame(minWidth: 42, minHeight: 35)
+                .background(.black.opacity(0.40), in: Capsule())
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 48)
+        .accessibilityIdentifier("mxFloatingFullscreenHeader")
     }
 
     private var fullScreenMap: some View {
@@ -630,7 +675,7 @@ struct MXPremiumCategoryScreen: View {
         }
         .mapStyle(.standard(elevation: .realistic))
         .mapControlVisibility(.hidden)
-        .ignoresSafeArea(edges: .bottom)
+        .ignoresSafeArea()
     }
 
     private var glassFilters: some View {
