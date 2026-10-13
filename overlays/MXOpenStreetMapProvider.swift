@@ -223,6 +223,7 @@ struct MXOpenStreetVenueMapCanvas: UIViewRepresentable {
 struct MXMapSettingsScreen: View {
     @EnvironmentObject private var choice: MXMapChoiceStore
     @State private var showProviderInfo = false
+    @AppStorage("mx_places_photo_api_key") private var placesPhotoAPIKey = ""
 
     var body: some View {
         NavigationStack {
@@ -266,6 +267,18 @@ struct MXMapSettingsScreen: View {
                     Link(destination: URL(string: "https://openfreemap.org")!) {
                         Label("Map data and attribution information", systemImage: "info.circle")
                     }
+                }
+
+                Section("Real business photos (optional)") {
+                    SecureField("Google Places API key", text: $placesPhotoAPIKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("mxGooglePlacesPhotosKey")
+                    Label(placesPhotoAPIKey.isEmpty ? "Google venue photos not enabled" : "Google venue photos enabled",
+                          systemImage: placesPhotoAPIKey.isEmpty ? "photo" : "photo.fill")
+                    Text("Uses Places API (New) to display photos of matched businesses. Google Cloud billing is required. Searches and photo requests may incur charges. No key is included in the IPA. When unavailable, you can still open the venue in Google Maps.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Link("Set up Google Places API ↗", destination: URL(string: "https://console.cloud.google.com/apis/library/places-backend.googleapis.com")!)
                 }
 
                 Section("Original Location Controls") {
