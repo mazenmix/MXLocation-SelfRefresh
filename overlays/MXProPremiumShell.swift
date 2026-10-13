@@ -20,6 +20,7 @@ final class MXPremiumNavigation: ObservableObject {
     @Published var tab = 0
     @Published var category: MXPremiumCategory = .dateSpots
     @Published var openCategory = false
+    @Published var isSearchActive = false
 }
 
 enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
