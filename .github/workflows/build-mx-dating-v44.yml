@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.4.1"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "45"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.5.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "50"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -86,6 +86,31 @@ jobs:
           assert 'resultsSheet(availableHeight:' in shell
           assert 'sheetExpanded' not in shell
           print('Fullscreen header, venue filters and physics-based bottom sheet verified')
+          PY
+
+      - name: Check brief top toast and fully restored Favorites/Wingman
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Locus-src/Locus/Features/Map')
+          root = (p/'RootView.swift').read_text()
+          map_home = (p/'MapHomeView.swift').read_text()
+          wingman = (p/'MXDatingEdition.swift').read_text()
+          premium = (p/'MXProPremiumShell.swift').read_text()
+          assert 'MXSavedView(selectedTab: $navigation.tab)' in (p/'MXProPremiumShell.swift').read_text(), 'Saved tab missing'
+          assert 'mxAddFavoriteToSaved' in root, 'Add favorite button missing'
+          assert 'moveFavorite(sourceID:' in root, 'Reorder lost'
+          assert 'renameFavorite(' in root, 'Rename lost'
+          assert 'MXWorldListRow(' in root and 'context.weather?.description' in (p/'MXWorlds.swift').read_text(), 'Weather row missing'
+          assert 'worldActiveBanner(world)' in map_home
+          assert '        .overlay(alignment: .top)' in map_home, 'Toast not on top overlay'
+          assert '2_700_000_000' not in map_home, 'Old toast timing'
+          assert '1_900_000_000' in map_home, 'Brief toast timing missing'
+          assert 'case afterDark = "Confident 18+"' in wingman
+          assert 'chatContext' in wingman and 'goal.rawValue' in wingman, 'Wingman improvements missing'
+          assert '"Kink Events"' in premium and '"Fetish Clubs"' in premium
+          print('Top toast, Saved reordering/editing/weather, Wingman and adults categories verified.')
           PY
 
       - name: Build for iPhone without code signing
@@ -115,17 +140,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.4.1-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.5.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.4.1-unsigned.ipa > MX-Location-Pro-v4.4.1-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.5.0-unsigned.ipa > MX-Location-Pro-v4.5.0-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.4.1
+          name: MX-Location-Pro-Dating-v4.5.0
           path: |
-            MX-Location-Pro-v4.4.1-unsigned.ipa
-            MX-Location-Pro-v4.4.1-unsigned.ipa.sha256
+            MX-Location-Pro-v4.5.0-unsigned.ipa
+            MX-Location-Pro-v4.5.0-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
