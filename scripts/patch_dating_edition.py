@@ -47,6 +47,11 @@ source = repo / "overlays/MXDatingEdition.swift"
 assert source.exists()
 (target / source.name).write_bytes(source.read_bytes())
 
+# Source-backed photos, Apple / OpenStreetMap contact fields, copyable GPS.
+venue_source = repo / "overlays/MXVenueEnrichment.swift"
+assert venue_source.is_file(), "Venue imagery / contacts overlay missing"
+(target / venue_source.name).write_bytes(venue_source.read_bytes())
+
 # Existing shortcuts now open Dating Radar inside Explore instead of a removed tab.
 map_file = target / "MapHomeView.swift"
 map_text = map_file.read_text(encoding="utf-8")
@@ -441,3 +446,25 @@ project_text = project_text.replace(dependency_anchor, """    type: application
         product: MapLibre""", 1)
 project_file.write_text(project_text, encoding="utf-8")
 print("MX Maps: Apple + OpenStreetMap via MapLibre 6.31.0, settings-only switch, no key or billing.")
+
+
+# Detach all nearby-category screens from the tab/navigation safe area.
+# This prevents the black strip below a partially inset NavigationStack.
+dating_file = target / "MXDatingEdition.swift"
+dating_code = dating_file.read_text(encoding="utf-8")
+original_category = '''            .navigationDestination(isPresented: $navigation.openCategory) {
+                MXPremiumCategoryScreen(category: navigation.category)
+            }'''
+fullscreen_category = '''            .fullScreenCover(isPresented: $navigation.openCategory) {
+                NavigationStack {
+                    MXPremiumCategoryScreen(category: navigation.category)
+                }
+                .environmentObject(navigation)
+                .preferredColorScheme(.dark)
+                .ignoresSafeArea(.container, edges: .all)
+            }'''
+if dating_code.count(original_category) != 1:
+    raise RuntimeError("Explore category navigation presentation anchor missing")
+dating_code = dating_code.replace(original_category, fullscreen_category, 1)
+dating_file.write_text(dating_code, encoding="utf-8")
+print("MX v4.8: genuine full-screen venue discovery, rich real place cards and details, OpenStreetMap Liberty colors.")
