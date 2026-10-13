@@ -11,29 +11,27 @@ enum MXVenuePhotoSource {
         return String(format: "%@|%.5f|%.5f", item.name ?? "", p.latitude, p.longitude)
     }
 
-    static func pictures(for item: MKMapItem) async -> [MXVenueVisual] {
-        var result: [MXVenueVisual] = []
-        let official = item.url.flatMap { MXVenueOpenProfile.officialURL($0.absoluteString) }
-        if let official {
-            result += await imagesFromWebsite(official, label: "Photo · venue website")
-        }
+    // Independent source pipelines: publish website imagery as soon as it arrives,
+    // without waiting for slow OpenStreetMap queries to finish.
+    static func websitePictures(for item: MKMapItem) async -> [MXVenueVisual] {
+        guard let official = item.url.flatMap({ MXVenueOpenProfile.officialURL($0.absoluteString) })
+        else { return [] }
+        return await imagesFromWebsite(official, label: "Image · venue's official website")
+    }
 
-        // Public OSM tags are used only when the name and coordinates match.
+    static func osmPictures(for item: MKMapItem) async -> [MXVenueVisual] {
         let profile = await MXVenueOpenData.lookup(item)
-        for (index, url) in profile.photoURLs.prefix(4).enumerated() {
-            if result.contains(where: { $0.source?.absoluteString == url.absoluteString }) { continue }
-            if let img = await MXVenueOpenData.photo(url) {
-                result.append(
-                    MXVenueVisual(id: "osm-\(index)-\(url.absoluteString)",
-                                  image: img, label: "Venue photo · OSM source", source: url)
-                )
+        var pictures: [MXVenueVisual] = []
+        for (index, url) in profile.photoURLs.prefix(2).enumerated() {
+            if let image = await MXVenueOpenData.photo(url) {
+                pictures.append(MXVenueVisual(id: "osm-\(index)-\(url.absoluteString)",
+                    image: image, label: "Image · verified OpenStreetMap listing", source: url))
             }
         }
-
-        if official == nil, let site = profile.site {
-            result += await imagesFromWebsite(site, label: "Photo · venue website")
+        if item.url == nil, let site = profile.site {
+            pictures += await imagesFromWebsite(site, label: "Image · venue's official website")
         }
-        return Array(result.prefix(6))
+        return pictures
     }
 
     private static func imagesFromWebsite(_ url: URL, label: String) async -> [MXVenueVisual] {
@@ -41,7 +39,7 @@ enum MXVenuePhotoSource {
               !host.contains("facebook.com"), !host.contains("instagram.com"),
               !host.contains("tiktok.com"), !host.contains("google.com") else { return [] }
         var request = URLRequest(url: url)
-        request.timeoutInterval = 7
+        request.timeoutInterval = 5
         request.setValue("text/html", forHTTPHeaderField: "Accept")
         guard let (bytes, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
@@ -50,12 +48,12 @@ enum MXVenuePhotoSource {
 
         let candidates = metadataImages(html, pageURL: url)
         var result: [MXVenueVisual] = []
-        for candidate in candidates.prefix(5) {
+        for candidate in candidates.prefix(2) {
             if let image = await MXVenueOpenData.photo(candidate) {
                 result.append(MXVenueVisual(id: candidate.absoluteString, image: image,
                                             label: label, source: url))
             }
-            if result.count == 3 { break }
+            if result.count == 2 { break }
         }
         return result
     }
@@ -124,19 +122,66 @@ final class MXVenuePhotoLibrary: ObservableObject {
     @Published private(set) var images: [String: [MXVenueVisual]] = [:]
     @Published private(set) var checked: Set<String> = []
     private var inFlight: Set<String> = []
+    private var priorityRequests: Set<String> = []
 
-    func load(_ item: MKMapItem) {
+    // A missing or slow photo source must never block the view indefinitely.
+    // The seven-second UI deadline affects the spinner only: source fetching
+    // continues independently and real pictures replace the missing state if
+    // they subsequently arrive.
+    private func armUIWatchdog(for key: String) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 7_000_000_000)
+            if images[key, default: []].isEmpty {
+                checked.insert(key)
+            }
+        }
+    }
+
+    private func add(_ photos: [MXVenueVisual], for key: String) {
+        guard !photos.isEmpty else { return }
+        var existing = images[key, default: []]
+        let known = Set(existing.map(\.id))
+        existing.append(contentsOf: photos.filter { !known.contains($0.id) })
+        images[key] = Array(existing.prefix(6))
+        checked.insert(key)
+    }
+
+    func load(_ item: MKMapItem, priority: Bool = false) {
         let key = MXVenuePhotoSource.key(item)
-        guard !checked.contains(key), !inFlight.contains(key) else { return }
+        if inFlight.contains(key) {
+            // The user opened Place Details while the same card was queued
+            // behind many other results. Its own request gets priority.
+            if priority && !priorityRequests.contains(key) && images[key, default: []].isEmpty {
+                priorityRequests.insert(key)
+                Task { @MainActor in
+                    await loadSources(item, key: key)
+                    priorityRequests.remove(key)
+                }
+            }
+            return
+        }
+        guard !checked.contains(key) else { return }
         inFlight.insert(key)
-        Task {
-            await MXVenuePhotoLimiter.shared.enter()
-            let photos = await MXVenuePhotoSource.pictures(for: item)
-            await MXVenuePhotoLimiter.shared.leave()
-            images[key] = photos
-            checked.insert(key)
+        armUIWatchdog(for: key)
+        Task { @MainActor in
+            if !priority { await MXVenuePhotoLimiter.shared.enter() }
+            await loadSources(item, key: key)
+            if !priority { await MXVenuePhotoLimiter.shared.leave() }
             inFlight.remove(key)
         }
+    }
+
+    private func loadSources(_ item: MKMapItem, key: String) async {
+        // Publish the first valid source as soon as it finishes. This avoids
+        // waiting for another independent website or OSM endpoint.
+        await withTaskGroup(of: [MXVenueVisual].self) { group in
+            group.addTask { await MXVenuePhotoSource.websitePictures(for: item) }
+            group.addTask { await MXVenuePhotoSource.osmPictures(for: item) }
+            for await photos in group {
+                add(photos, for: key)
+            }
+        }
+        checked.insert(key)
     }
 
     func pictures(_ item: MKMapItem) -> [MXVenueVisual] {
