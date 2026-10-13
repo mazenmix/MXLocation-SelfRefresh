@@ -90,3 +90,71 @@ assert src.is_file()
 shutil.copy2(src,dst)
 
 print("MX Location Pro: unique bundle ID, URL scheme, storage sandbox, separate root tab, 41-module discovery suite.")
+
+# Install premium five-tab shell. Preserve the app's original GPS and pairing
+# engine, and keep the other original components available for advanced actions.
+premium_shell = repo / "overlays/MXProPremiumShell.swift"
+premium_features = repo / "overlays/MXProPremiumFeatures.swift"
+for premium_source in (premium_shell, premium_features):
+    assert premium_source.is_file(), premium_source
+    shutil.copy2(premium_source, root / "Locus/Features/Map" / premium_source.name)
+
+root_text = root_view.read_text(encoding="utf-8")
+start = root_text.index("struct RootView: View {")
+end = root_text.index("struct MXSavedView: View {", start)
+replacement = """struct RootView: View {
+    var body: some View {
+        MXProPremiumRoot()
+    }
+}
+
+"""
+root_view.write_text(root_text[:start] + replacement + root_text[end:], encoding="utf-8")
+
+map_text = map_home.read_text(encoding="utf-8")
+env_anchor = "    @EnvironmentObject private var pairing: PairingStore"
+if map_text.count(env_anchor) != 1:
+    raise RuntimeError("Premium map EnvironmentObject anchor missing")
+map_text = map_text.replace(env_anchor, env_anchor +
+    "\n    @EnvironmentObject private var premiumNavigation: MXPremiumNavigation", 1)
+bar_anchor = "                Spacer(minLength: 0)\n\n                HStack {\n                    Spacer()\n                    locateButton"
+if map_text.count(bar_anchor) != 1:
+    raise RuntimeError("Map category bar anchor missing")
+bar = """                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach([MXPremiumCategory.dateSpots, .cafes, .nightlife,
+                                 .socialRadar, .jazz, .activities]) { category in
+                            Button {
+                                searchFocused = false
+                                premiumNavigation.category = category
+                                premiumNavigation.openCategory = true
+                                premiumNavigation.tab = 1
+                            } label: {
+                                VStack(spacing: 5) {
+                                    Image(systemName: category.symbol)
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(category.tint)
+                                    Text(category.shortTitle)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(width: 82, height: 63)
+                                .background(.ultraThinMaterial,
+                                            in: RoundedRectangle(cornerRadius: 13))
+                                .overlay(RoundedRectangle(cornerRadius: 13)
+                                            .stroke(category.tint.opacity(0.35)))
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .accessibilityIdentifier("mxPremiumMapCategories")
+                Spacer(minLength: 0)
+
+                HStack {
+                    Spacer()
+                    locateButton"""
+map_text = map_text.replace(bar_anchor, bar, 1)
+# The initial MX Pro launcher remains accessible from Map as a separate entry.
+map_home.write_text(map_text, encoding="utf-8")
+print("Install premium five-tab shell, discover categories, date planner and essentials.")
