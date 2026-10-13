@@ -63,6 +63,28 @@ enum MXVenueOpenData {
             .split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
+    private static func osmElements(query: String) async -> [[String: Any]] {
+        let endpoints = [
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass-api.de/api/interpreter"
+        ]
+        for endpoint in endpoints {
+            var components = URLComponents(string: endpoint)
+            components?.queryItems = [URLQueryItem(name: "data", value: query)]
+            guard let url = components?.url else { continue }
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 8
+            request.setValue("MXLocationPro/4.9.2 (verified OpenStreetMap venue data)", forHTTPHeaderField: "User-Agent")
+            guard let (bytes, response) = try? await URLSession.shared.data(for: request),
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  bytes.count < 1_500_000,
+                  let root = (try? JSONSerialization.jsonObject(with: bytes)) as? [String: Any],
+                  let entries = root["elements"] as? [[String: Any]] else { continue }
+            return entries
+        }
+        return []
+    }
+
     // Network requests are optional and brief. We never invent contact details.
     static func lookup(_ item: MKMapItem) async -> MXVenueOpenProfile {
         var profile = MXVenueOpenProfile()
@@ -73,17 +95,9 @@ enum MXVenueOpenData {
         let q = String(format:
             "[out:json][timeout:7];nwr(around:130,%.6f,%.6f)[\"name\"];out center 50;",
             p.latitude, p.longitude)
-        var comps = URLComponents(string: "https://overpass.kumi.systems/api/interpreter")
-        comps?.queryItems = [URLQueryItem(name: "data", value: q)]
-        guard let url = comps?.url else { return profile }
-        var req = URLRequest(url: url)
-        req.timeoutInterval = 10
-        req.setValue("MX Location Pro Venue Info/4.8 (OpenStreetMap verified listing)", forHTTPHeaderField: "User-Agent")
-        guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              data.count < 1_500_000,
-              let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let entries = dict["elements"] as? [[String: Any]] else { return profile }
+        // An individual public Overpass mirror can be busy or unavailable.
+        // Fall back to the second endpoint only on request/server failure.
+        let entries = await osmElements(query: q)
 
         for entry in entries {
             guard let tags = entry["tags"] as? [String: String],
