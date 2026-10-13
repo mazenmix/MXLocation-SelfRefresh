@@ -194,6 +194,24 @@ struct MXVenuePhotoGallery: View {
     let item: MKMapItem
     @ObservedObject private var library = MXVenuePhotoLibrary.shared
 
+    private var mapURL: URL? {
+        var url = URLComponents(string: "https://www.google.com/maps/search/")
+        url?.queryItems = [
+            URLQueryItem(name: "api", value: "1"),
+            URLQueryItem(name: "query", value: (item.name ?? "Business") + ", " + (item.placemark.title ?? ""))
+        ]
+        return url?.url
+    }
+
+    private var imageSearchURL: URL? {
+        var url = URLComponents(string: "https://www.google.com/search")
+        url?.queryItems = [
+            URLQueryItem(name: "tbm", value: "isch"),
+            URLQueryItem(name: "q", value: (item.name ?? "Business") + " " + (item.placemark.title ?? ""))
+        ]
+        return url?.url
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
@@ -232,17 +250,27 @@ struct MXVenuePhotoGallery: View {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 29, weight: .light))
                             .foregroundStyle(.white.opacity(0.7))
-                        Text("No confirmed venue photo available")
+                        Text("No verified photo from connected sources")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
-                        Text("We won't substitute a street map or another business's pictures.")
+                        Text("Google Places photos can be enabled in Settings. You can also browse the venue online.")
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.64))
+                            .foregroundStyle(.white.opacity(0.72))
                             .multilineTextAlignment(.center)
-                        if let website = item.url, website.scheme == "https" {
-                            Link("Check the venue's website ↗", destination: website)
-                                .font(.caption.weight(.semibold))
+                        HStack(spacing: 18) {
+                            if let mapURL {
+                                Link(destination: mapURL) {
+                                    Label("Google Maps", systemImage: "map")
+                                }
+                            }
+                            if let imageSearchURL {
+                                Link(destination: imageSearchURL) {
+                                    Label("Search photos", systemImage: "photo")
+                                }
+                            }
                         }
+                        .font(.caption.weight(.semibold))
+                        .tint(MXPremiumStyle.cyan)
                     }
                     .padding(.horizontal, 25)
                 } else {
@@ -253,11 +281,11 @@ struct MXVenuePhotoGallery: View {
                     }
                 }
             }
-            .frame(height: 230)
+            .frame(height: library.pictures(item).isEmpty && library.didCheck(item) ? 178 : 230)
             .clipShape(RoundedRectangle(cornerRadius: 20))
 
             if !library.pictures(item).isEmpty {
-                Text("Swipe for more • Photos supplied by the venue website or matching public venue records.")
+                Text("Swipe for more • Photos from verified venue sources, with source and credit labels.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
