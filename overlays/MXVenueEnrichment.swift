@@ -137,7 +137,9 @@ enum MXVenueOpenData {
         guard let scene = try? await MKLookAroundSceneRequest(coordinate: coordinate).scene else { return nil }
         let options = MKLookAroundSnapshotter.Options()
         options.size = CGSize(width: 850, height: 540)
-        return try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot.image
+        let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
+        let snapshot = try? await snapshotter.snapshot()
+        return snapshot?.image
     }
 
     static func mapPreview(_ coordinate: CLLocationCoordinate2D) async -> UIImage? {
