@@ -58,7 +58,6 @@ jobs:
           python3 scripts/patch_v142_features.py Locus-src
           python3 scripts/patch_mx_pro.py Locus-src
           python3 scripts/patch_dating_edition.py Locus-src
-          python3 scripts/patch_maplibre_fullscreen.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           python3 - <<'PY'
           from pathlib import Path
