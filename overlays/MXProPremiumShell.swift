@@ -24,7 +24,7 @@ final class MXPremiumNavigation: ObservableObject {
 }
 
 enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
-    case dateSpots, adultVenues, afterDark, romanticStays, socialRadar, nightlife, cafes, activities, jazz
+    case dateSpots, adultVenues, afterDark, romanticStays, socialRadar, selfCare, nightlife, cafes, activities, jazz
 
     var id: String { rawValue }
     var title: String {
@@ -34,6 +34,7 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .afterDark: "After Dark"
         case .romanticStays: "Romantic Stays"
         case .socialRadar: "Social Radar"
+        case .selfCare: "Self Care"
         case .nightlife: "Nightlife"
         case .cafes: "Cafés"
         case .activities: "Activities"
@@ -55,6 +56,7 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .afterDark: "sparkles"
         case .romanticStays: "bed.double.fill"
         case .socialRadar: "person.2.fill"
+        case .selfCare: "sparkles.rectangle.stack.fill"
         case .nightlife: "wineglass.fill"
         case .cafes: "cup.and.saucer.fill"
         case .activities: "figure.walk"
@@ -68,6 +70,7 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .afterDark: Color(red: 0.72, green: 0.38, blue: 0.96)
         case .romanticStays: Color(red: 0.90, green: 0.49, blue: 0.70)
         case .socialRadar: Color(red: 0.25, green: 0.70, blue: 1)
+        case .selfCare: Color(red: 0.40, green: 0.84, blue: 0.82)
         case .nightlife: Color(red: 0.98, green: 0.31, blue: 0.84)
         case .cafes: Color(red: 1.0, green: 0.60, blue: 0.25)
         case .activities: Color(red: 0.23, green: 0.88, blue: 0.62)
@@ -81,6 +84,7 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .afterDark: "Late-night discoveries, cabaret & hidden bars"
         case .romanticStays: "Boutique and adult-only hotels"
         case .socialRadar: "Public social gathering places"
+        case .selfCare: "Massage, spas, barbers, nails & relaxation"
         case .nightlife: "Lounges, clubs & evening venues"
         case .cafes: "Coffee shops & casual meetups"
         case .activities: "Public activities & attractions"
@@ -89,13 +93,14 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
     }
     var searchTerms: [String] {
         switch self {
-        case .dateSpots: ["romantic restaurant", "rooftop restaurant", "date cafe"]
+        case .dateSpots: ["romantic restaurant", "rooftop restaurant", "date cafe", "cozy wine bar", "couples activity", "sunset view restaurant"]
         case .adultVenues: ["adult entertainment club", "burlesque cabaret", "swingers lifestyle club",
                              "strip club", "fetish nightclub", "adult cabaret show",
                              "couples lifestyle lounge", "clothing optional resort"]
         case .afterDark: ["speakeasy bar", "late night lounge", "cabaret club", "nightclub"]
         case .romanticStays: ["boutique hotel", "romantic hotel", "adults only resort"]
-        case .socialRadar: ["social club", "community events venue", "popular cafe"]
+        case .socialRadar: ["social club", "community events venue", "social dance studio", "speed dating event venue", "language exchange cafe", "board game cafe"]
+        case .selfCare: ["day spa", "massage therapy", "wellness center", "barbershop", "hair salon", "nail salon", "foot spa", "facial spa"]
         case .nightlife: ["nightlife", "cocktail lounge", "nightclub"]
         case .cafes: ["coffee shop", "cafe", "coffee bar"]
         case .activities: ["museum", "activity center", "attraction"]
@@ -147,7 +152,8 @@ final class MXPremiumPlacesModel: ObservableObject {
             let title = (place.name ?? "").lowercased()
             let blocked = ["gun club", "shooting", "firearm", "rifle", "detective",
                            "private investigator", "police", "hospital", "school",
-                           "dental", "clinic", "weapons", "bank"]
+                           "dental", "clinic", "weapons", "bank", "security", "allied services",
+                            "guard agency", "training academy", "security agency", "investigation"]
             let unrelated = category == .adultVenues &&
                 blocked.contains(where: { title.contains($0) })
             return distance <= radiusKm * 1000 && !unrelated && seen.insert(key).inserted
@@ -535,7 +541,8 @@ struct MXPremiumCategoryScreen: View {
                                    "18+ Resorts", "Sensual Spas", "After-hours"]
         case .afterDark: return ["All", "Speakeasies", "Rooftops", "Nightclubs", "24H Cafes", "Live Music"]
         case .romanticStays: return ["All", "Boutique Hotels", "18+ Hotels", "Luxury Hotels", "Resorts"]
-        case .socialRadar: return ["All", "Cafés", "Groups", "Activities"]
+        case .socialRadar: return ["All", "Cafés", "Groups", "Activities", "Social Dance", "Language Exchanges", "Board Games"]
+        case .selfCare: return ["All", "Massage", "Spas", "Foot Spa", "Nails", "Hair", "Barbers", "Facials", "Wellness"]
         case .nightlife: return ["All", "Bars", "Clubs", "Lounges", "Live Music"]
         case .cafes: return ["All", "Coffee", "Dessert", "Quiet"]
         case .activities: return ["All", "Museums", "Outdoors", "Games"]
@@ -578,6 +585,17 @@ struct MXPremiumCategoryScreen: View {
         case "Live Music": return "live music bar"
         case "Dessert": return "dessert cafe"
         case "Quiet": return "quiet cafe"
+        case "Social Dance": return "social dance studio"
+        case "Language Exchanges": return "language exchange cafe"
+        case "Board Games": return "board game cafe"
+        case "Massage": return "massage therapy"
+        case "Spas": return "day spa"
+        case "Foot Spa": return "foot spa"
+        case "Nails": return "nail salon"
+        case "Hair": return "hair salon"
+        case "Barbers": return "barber shop"
+        case "Facials": return "facial spa"
+        case "Wellness": return "wellness center"
         case "Museums": return "museum"
         case "Outdoors": return "public park"
         case "Games": return "bowling arcade"
