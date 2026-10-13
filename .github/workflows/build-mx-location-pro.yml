@@ -55,27 +55,31 @@ jobs:
           swift scripts/render_mx_pro_icon.swift assets/MXProIcon1024.png
           cp assets/MXProIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Locus-src/Locus/Resources/Info.plist || true
-      - name: Verify MX Pro is reachable from Map and tab bar
+      - name: Verify premium shell, navigation, and functional screens
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          root = Path("Locus-src/Locus/Features/Map/RootView.swift").read_text()
-          map_home = Path("Locus-src/Locus/Features/Map/MapHomeView.swift").read_text()
-          pro = Path("Locus-src/Locus/Features/Map/MXLocationProSuite.swift").read_text()
-          assert "MXProSuiteView()" in root and 'Label("MX Pro"' in root, "Pro tab not in RootView"
-          assert 'accessibilityIdentifier("mxProHubMapButton")' in map_home, "Pro map button missing"
-          assert ".sheet(isPresented: $showMXProHub)" in map_home, "Pro map sheet missing"
-          assert "MXProSuiteView()" in map_home, "Pro map destination not wired"
-          assert "struct MXProSuiteView: View" in pro, "Pro suite missing"
-          assert all(f".init({i}," in pro for i in range(1, 42)), "41-feature catalog incomplete"
-          assert 'Text("Essentials").tag(1)' in pro, "Curated essentials section missing"
-          assert 'Text("Toolkit 41").tag(1)' not in pro, "Legacy clutter still visible"
-          assert all(f"essentialRow({i})" in pro for i in (1,10,11,13,8,29,9,27,37)), "One of nine essentials missing"
-          assert all(f'category("{name}"' in pro for name in ("Date Spots","Social Radar","Nightlife","Jazz","Cafés","Activities")), "One of six categories missing"
-          assert 'session.stop(pairing: pairing)' in pro, "Restore button missing"
-          assert 'CLOSEST MATCH' in pro, "Nearest venue card missing"
-          print("MX Pro tab + Map launcher + nine Essentials + six dynamic categories verified.")
+          p = Path("Locus-src/Locus/Features/Map")
+          root = (p / "RootView.swift").read_text()
+          map_home = (p / "MapHomeView.swift").read_text()
+          shell = (p / "MXProPremiumShell.swift").read_text()
+          features = (p / "MXProPremiumFeatures.swift").read_text()
+          assert "MXProPremiumRoot()" in root, "Premium root not wired"
+          assert 'accessibilityIdentifier("mxPremiumMapCategories")' in map_home, "Map shortcuts not visible"
+          assert 'MXProSuiteView()' in map_home, "Advanced Pro access no longer available"
+          assert "TabView(selection: $navigation.tab)" in shell, "Five-tab navigation missing"
+          for screen in ("MXPremiumExploreScreen", "MXPremiumPlanScreen",
+                         "MXPremiumEssentialsScreen", "MXPremiumSavedScreen"):
+              assert screen in shell + features, f"Missing screen: {screen}"
+          for screen in ("MXPremiumSmartRouteView", "MXPremiumReminderView",
+                         "MXPremiumVaultView", "MXPremiumLocationControl",
+                         "MXPremiumTravelView", "MXPremiumOfflineView"):
+              assert "struct " + screen in features, f"Missing functional screen: {screen}"
+          for cat in ("dateSpots", "socialRadar", "nightlife", "cafes", "activities", "jazz"):
+              assert "case " + cat in shell or ", " + cat in shell, f"Missing category: {cat}"
+          assert 'No ratings, prices, or live attendance are inferred' in shell, "Data integrity note absent"
+          print("Premium UI, active location shortcuts, categories and real tool screens verified.")
           PY
       - name: Generate Xcode project
         shell: bash
@@ -107,19 +111,19 @@ jobs:
           INFO="$WORK/Payload/MXLocationPro.app/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$INFO"
           /usr/libexec/PlistBuddy -c 'Set :CFBundleName MXLocationPro' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.1.0' "$INFO"
-          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 50' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.2.0' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 60' "$INFO"
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")
           test "$BUNDLE_ID" = "com.mazenmix.mxlocationpro"
-          OUTPUT="$GITHUB_WORKSPACE/MX-Location-Pro-v4.1.0-unsigned.ipa"
+          OUTPUT="$GITHUB_WORKSPACE/MX-Location-Pro-v4.2.0-unsigned.ipa"
           (cd "$WORK" && /usr/bin/zip -qry "$OUTPUT" Payload)
           shasum -a 256 "$OUTPUT" > "$OUTPUT.sha256"
       - name: Upload MX Location Pro IPA
         uses: actions/upload-artifact@v4
         with:
-          name: MX-Location-Pro-v4.1.0
+          name: MX-Location-Pro-v4.2.0
           path: |
-            MX-Location-Pro-v4.1.0-unsigned.ipa
-            MX-Location-Pro-v4.1.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.2.0-unsigned.ipa
+            MX-Location-Pro-v4.2.0-unsigned.ipa.sha256
             Locus-src/xcodebuild-mxpro.log
           if-no-files-found: error
