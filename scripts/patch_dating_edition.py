@@ -57,32 +57,18 @@ if button_start >= 0:
     if button_end >= 0:
         map_text = map_text[:button_start] + "                searchBar\n" + map_text[button_end + len("                }\n"):]
 
-# Replace the six quick links with a single Dating Radar entry point.
+# Remove the old six-category map strip and its redundant blue Radar button.
+# The new Explore overlay owns the glass navigation chips.
 list_start = map_text.find("                ScrollView(.horizontal, showsIndicators: false) {\n                    HStack(spacing: 8) {\n                        ForEach([MXPremiumCategory")
 if list_start >= 0:
     list_end_marker = '                .accessibilityIdentifier("mxPremiumMapCategories")\n                Spacer(minLength: 0)\n'
     list_end = map_text.find(list_end_marker, list_start)
-    assert list_end > list_start, "Expected category bar end marker"
+    assert list_end > list_start, "Expected old category bar"
     list_end += len(list_end_marker)
-    simpler = '''                Button {
-                    searchFocused = false
-                    premiumNavigation.category = .dateSpots
-                    premiumNavigation.openCategory = true
-                    premiumNavigation.tab = 0
-                } label: {
-                    Label("Dating Radar", systemImage: "heart.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(10)
-                        .foregroundStyle(.white)
-                        .background(Color(red: 0.12, green: 0.34, blue: 0.62),
-                                    in: RoundedRectangle(cornerRadius: 12))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("mxDatingRadarMapButton")
-                Spacer(minLength: 0)
-'''
-    map_text = map_text[:list_start] + simpler + map_text[list_end:]
+    map_text = map_text[:list_start] + "                Spacer(minLength: 0)\n" + map_text[list_end:]
+# No separate Map / Dating Radar / GPS Control segmented picker.
+# The map's Change Location and Stop buttons remain unmodified.
 map_file.write_text(map_text, encoding="utf-8")
 assert 'MXDatingWingmanScreen()' in shell.read_text(encoding='utf-8')
 assert 'MXDatingExploreHome()' in shell.read_text(encoding='utf-8')
-print("Dating Edition: 2 tabs; Map / Radar / GPS; on-device Wingman and translator.")
+print("Dating Edition 4.4: Explore/Wingman tabs; full-screen venue maps, GPS actions on Map.")
