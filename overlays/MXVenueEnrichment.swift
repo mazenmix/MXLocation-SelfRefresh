@@ -2,6 +2,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 import UIKit
+import ImageIO
 
 // Unverified search-engine pictures can easily depict the wrong business.
 // Only images explicitly tagged against a matching OpenStreetMap business are
@@ -130,7 +131,18 @@ enum MXVenueOpenData {
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               (response as? HTTPURLResponse)?.statusCode == 200,
               data.count < 7_000_000 else { return nil }
-        return UIImage(data: data)
+        // Decode a capped-size bitmap for smooth scrolling and bounded memory;
+        // original multi-megapixel site images could otherwise exhaust RAM.
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1200
+        ]
+        guard let reduced = CGImageSourceCreateThumbnailAtIndex(
+            source, 0, options as CFDictionary
+        ) else { return nil }
+        return UIImage(cgImage: reduced)
     }
 
     static func streetView(_ coordinate: CLLocationCoordinate2D) async -> UIImage? {
