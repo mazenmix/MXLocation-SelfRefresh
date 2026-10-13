@@ -23,12 +23,15 @@ final class MXPremiumNavigation: ObservableObject {
 }
 
 enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
-    case dateSpots, socialRadar, nightlife, cafes, activities, jazz
+    case dateSpots, adultVenues, afterDark, romanticStays, socialRadar, nightlife, cafes, activities, jazz
 
     var id: String { rawValue }
     var title: String {
         switch self {
         case .dateSpots: "Date Spots"
+        case .adultVenues: "Adults 18+"
+        case .afterDark: "After Dark"
+        case .romanticStays: "Romantic Stays"
         case .socialRadar: "Social Radar"
         case .nightlife: "Nightlife"
         case .cafes: "Cafés"
@@ -39,12 +42,17 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
     var shortTitle: String {
         switch self {
         case .jazz: "Jazz"
+        case .adultVenues: "18+"
+        case .romanticStays: "Stays"
         default: title
         }
     }
     var symbol: String {
         switch self {
         case .dateSpots: "heart.fill"
+        case .adultVenues: "moon.stars.fill"
+        case .afterDark: "sparkles"
+        case .romanticStays: "bed.double.fill"
         case .socialRadar: "person.2.fill"
         case .nightlife: "wineglass.fill"
         case .cafes: "cup.and.saucer.fill"
@@ -55,6 +63,9 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
     var tint: Color {
         switch self {
         case .dateSpots: Color(red: 1.0, green: 0.34, blue: 0.55)
+        case .adultVenues: Color(red: 0.93, green: 0.22, blue: 0.54)
+        case .afterDark: Color(red: 0.72, green: 0.38, blue: 0.96)
+        case .romanticStays: Color(red: 0.90, green: 0.49, blue: 0.70)
         case .socialRadar: Color(red: 0.25, green: 0.70, blue: 1)
         case .nightlife: Color(red: 0.98, green: 0.31, blue: 0.84)
         case .cafes: Color(red: 1.0, green: 0.60, blue: 0.25)
@@ -65,6 +76,9 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
     var subtitle: String {
         switch self {
         case .dateSpots: "Romantic venues & cafés"
+        case .adultVenues: "Adult-only, sex-positive and nightlife venues"
+        case .afterDark: "Late-night discoveries, cabaret & hidden bars"
+        case .romanticStays: "Boutique and adult-only hotels"
         case .socialRadar: "Public social gathering places"
         case .nightlife: "Lounges, clubs & evening venues"
         case .cafes: "Coffee shops & casual meetups"
@@ -75,6 +89,10 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
     var searchTerms: [String] {
         switch self {
         case .dateSpots: ["romantic restaurant", "rooftop restaurant", "date cafe"]
+        case .adultVenues: ["adult entertainment club", "burlesque cabaret", "swingers club",
+                             "strip club", "adult lifestyle club", "adult only nightlife"]
+        case .afterDark: ["speakeasy bar", "late night lounge", "cabaret club", "nightclub"]
+        case .romanticStays: ["boutique hotel", "romantic hotel", "adults only resort"]
         case .socialRadar: ["social club", "community events venue", "popular cafe"]
         case .nightlife: ["nightlife", "cocktail lounge", "nightclub"]
         case .cafes: ["coffee shop", "cafe", "coffee bar"]
@@ -477,6 +495,8 @@ struct MXPremiumExploreScreen: View {
     }
 }
 
+// Full-screen, gesture-driven venue discovery. Results come only from MapKit,
+// never fabricated people counts, reviews, live crowds or adult-service claims.
 struct MXPremiumCategoryScreen: View {
     let category: MXPremiumCategory
     @EnvironmentObject private var session: SpoofSession
@@ -484,31 +504,55 @@ struct MXPremiumCategoryScreen: View {
     @State private var radius = 5.0
     @State private var subfilter = "All"
     @State private var selectedVenue: MKMapItem?
+    @State private var sheetExpanded = false
+    @State private var mapPosition: MapCameraPosition = .automatic
 
     private var center: CLLocationCoordinate2D? {
         session.pin ?? session.simulated ?? session.realCoordinate
     }
     private var filters: [String] {
         switch category {
-        case .dateSpots: ["All", "Restaurants", "Rooftops", "Lounges"]
-        case .socialRadar: ["All", "Cafés", "Groups", "Activities"]
-        case .nightlife: ["All", "Bars", "Clubs", "Lounges", "Live Music"]
-        case .cafes: ["All", "Coffee", "Dessert", "Quiet"]
-        case .activities: ["All", "Museums", "Outdoors", "Games"]
-        case .jazz: ["All", "Jazz", "Live Music", "Lounge"]
+        case .dateSpots: return ["All", "Restaurants", "Rooftops", "Lounges", "Wine Bars", "Private Dining"]
+        case .adultVenues: return ["All", "Adult Clubs", "Swingers Clubs", "Strip Clubs",
+                                   "Burlesque", "Cabaret", "Adult Stores", "Adult Cinemas",
+                                   "Nudist Beaches", "18+ Resorts", "Sensual Spas"]
+        case .afterDark: return ["All", "Speakeasies", "Rooftops", "Nightclubs", "24H Cafes", "Live Music"]
+        case .romanticStays: return ["All", "Boutique Hotels", "18+ Hotels", "Luxury Hotels", "Resorts"]
+        case .socialRadar: return ["All", "Cafés", "Groups", "Activities"]
+        case .nightlife: return ["All", "Bars", "Clubs", "Lounges", "Live Music"]
+        case .cafes: return ["All", "Coffee", "Dessert", "Quiet"]
+        case .activities: return ["All", "Museums", "Outdoors", "Games"]
+        case .jazz: return ["All", "Jazz", "Live Music", "Lounge"]
         }
     }
     private var customSearch: String? {
-        guard subfilter != "All" else { return nil }
         switch subfilter {
+        case "All": return nil
         case "Restaurants": return "romantic restaurant"
-        case "Rooftops": return "rooftop lounge"
+        case "Rooftops": return "rooftop bar"
         case "Lounges", "Lounge": return "lounge"
+        case "Wine Bars": return "wine bar"
+        case "Private Dining": return "private dining restaurant"
+        case "Adult Clubs": return "adult entertainment club"
+        case "Swingers Clubs": return "swingers club"
+        case "Strip Clubs": return "strip club"
+        case "Burlesque": return "burlesque show venue"
+        case "Cabaret": return "cabaret club"
+        case "Adult Stores": return "adult novelty store"
+        case "Adult Cinemas": return "adult movie theater"
+        case "Nudist Beaches": return "clothing optional beach"
+        case "18+ Resorts", "18+ Hotels": return "adults only hotel"
+        case "Sensual Spas": return "adult spa wellness"
+        case "Speakeasies": return "speakeasy bar"
+        case "Nightclubs", "Clubs": return "nightclub"
+        case "24H Cafes": return "24 hour cafe"
+        case "Boutique Hotels": return "boutique hotel"
+        case "Luxury Hotels": return "luxury hotel"
+        case "Resorts": return "resort hotel"
         case "Cafés", "Coffee": return "coffee shop"
         case "Groups": return "community event venue"
         case "Activities": return "social activity center"
         case "Bars": return "bar"
-        case "Clubs": return "nightclub"
         case "Live Music": return "live music bar"
         case "Dessert": return "dessert cafe"
         case "Quiet": return "quiet cafe"
@@ -520,97 +564,198 @@ struct MXPremiumCategoryScreen: View {
         }
     }
     private var key: String {
-        guard let c = center else { return "none" }
-        return String(format: "%.5f:%.5f:%@:%.0f:%@", c.latitude, c.longitude, category.rawValue, radius, subfilter)
+        guard let c = center else { return "no-location" }
+        return String(format: "%.5f:%.5f:%@:%.0f:%@",
+                      c.latitude, c.longitude, category.rawValue, radius, subfilter)
     }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 15) {
-                HStack(spacing: 12) {
-                    Image(systemName: category.symbol)
-                        .font(.title).foregroundStyle(category.tint)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(category.title).font(.title2.weight(.bold))
-                        Text(category.subtitle)
-                            .font(.caption).foregroundStyle(MXPremiumStyle.muted)
-                    }
-                }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(filters, id: \.self) { option in
-                            Button {
-                                subfilter = option
-                            } label: {
-                                Text(option)
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 13).padding(.vertical, 9)
-                                    .background(subfilter == option ? category.tint.opacity(0.35) :
-                                                    MXPremiumStyle.panel,
-                                                in: Capsule())
-                                    .foregroundStyle(subfilter == option ? .white : MXPremiumStyle.muted)
-                            }.buttonStyle(.plain)
-                        }
-                    }
-                }
-                MXPremiumPanel {
-                    HStack {
-                        Label(model.areaName, systemImage: "mappin.circle")
-                            .font(.caption).lineLimit(2)
-                        Spacer()
-                        Text("\(Int(radius)) km").font(.caption.monospacedDigit())
-                    }
-                    Slider(value: $radius, in: 1...25, step: 1)
-                        .tint(category.tint)
-                }
-                if let c = center {
-                    Map(initialPosition: .region(MKCoordinateRegion(
-                        center: c, latitudinalMeters: radius * 2000,
-                        longitudinalMeters: radius * 2000
-                    ))) {
-                        Marker("Selected", coordinate: c).tint(MXPremiumStyle.cyan)
-                        if category == .socialRadar {
-                            ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
-                                MapCircle(center: item.placemark.coordinate, radius: 240)
-                                    .foregroundStyle(Color.orange.opacity(0.22))
-                            }
-                        }
-                        ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
-                            Marker(item.name ?? "Venue", coordinate: item.placemark.coordinate)
-                                .tint(category.tint)
-                        }
-                    }
-                    .id(key)
-                    .frame(height: 215)
-                    .clipShape(RoundedRectangle(cornerRadius: 19))
-                    if category == .socialRadar {
-                        Label("Orange areas represent mapped venues, not live people.", systemImage: "circle.hexagongrid.fill")
-                            .font(.caption2).foregroundStyle(.orange)
-                        Text("Social Radar maps public gathering venues—not crowds, gender, or singles locations.")
-                            .font(.caption2).foregroundStyle(MXPremiumStyle.muted)
-                    }
-                    if model.loading { ProgressView("Updating real nearby places…") }
-                    if let error = model.error { Text(error).font(.caption).foregroundStyle(MXPremiumStyle.muted) }
-                    ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
-                        MXPremiumVenueCard(item: item, center: c, category: category) {
-                            selectedVenue = item
-                        }
-                    }
-                } else {
-                    Text("Select a location using the Map tab.")
-                        .foregroundStyle(MXPremiumStyle.muted)
-                }
-            }.padding(16)
+        ZStack(alignment: .bottom) {
+            fullScreenMap
+            VStack(spacing: 0) {
+                glassFilters
+                Spacer(minLength: 0)
+                resultsSheet
+            }
         }
         .background(MXPremiumStyle.background)
         .navigationTitle(category.title)
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: Binding(get: { selectedVenue != nil },
-                                    set: { if !$0 { selectedVenue = nil } })) {
+        .toolbar(.visible, for: .navigationBar)
+        .sheet(isPresented: Binding(
+            get: { selectedVenue != nil },
+            set: { if !$0 { selectedVenue = nil } }
+        )) {
             if let item = selectedVenue { MXPremiumVenueDetails(item: item) }
         }
         .task(id: key) {
-            if let c = center { await model.search(around: c, category: category, radiusKm: radius, customTerm: customSearch) }
+            if let c = center {
+                mapPosition = .region(MKCoordinateRegion(
+                    center: c,
+                    latitudinalMeters: max(1500, radius * 2200),
+                    longitudinalMeters: max(1500, radius * 2200)
+                ))
+                await model.search(around: c, category: category,
+                                   radiusKm: radius, customTerm: customSearch)
+            }
         }
+    }
+
+    private var fullScreenMap: some View {
+        Map(position: $mapPosition) {
+            if let c = center {
+                Annotation("Selected", coordinate: c) {
+                    Image(systemName: "location.circle.fill")
+                        .font(.system(size: 29))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, MXPremiumStyle.cyan)
+                }
+            }
+            ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
+                Annotation(item.name ?? "Venue", coordinate: item.placemark.coordinate) {
+                    Button {
+                        selectedVenue = item
+                    } label: {
+                        Image(systemName: category.symbol)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(category.tint, in: Circle())
+                            .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 2))
+                            .shadow(color: .black.opacity(0.4), radius: 5)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .mapStyle(.standard(elevation: .realistic))
+        .mapControlVisibility(.hidden)
+        .ignoresSafeArea(edges: .bottom)
+    }
+
+    private var glassFilters: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Image(systemName: category.symbol)
+                    .foregroundStyle(category.tint)
+                Text(category.title)
+                    .font(.headline.weight(.bold))
+                Spacer()
+                Text("\(model.places.count) places")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(MXPremiumStyle.muted)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(filters, id: \.self) { choice in
+                        Button {
+                            subfilter = choice
+                        } label: {
+                            Text(choice)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 11)
+                                .frame(height: 32)
+                                .background(subfilter == choice ?
+                                    category.tint.opacity(0.8) : MXPremiumStyle.panelRaised,
+                                    in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            HStack(spacing: 9) {
+                Label(model.areaName, systemImage: "mappin.circle")
+                    .font(.caption2)
+                    .lineLimit(1)
+                Spacer()
+                Text("\(Int(radius)) km")
+                    .font(.caption.monospacedDigit())
+            }
+            .foregroundStyle(MXPremiumStyle.muted)
+            Slider(value: $radius, in: 1...25, step: 1)
+                .tint(category.tint)
+            if category == .adultVenues {
+                Text("18+ · Verify admission, consent policies, current business status and local law with the venue.")
+                    .font(.caption2)
+                    .foregroundStyle(MXPremiumStyle.muted)
+            }
+        }
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.12)))
+        .padding(.horizontal, 12)
+        .padding(.top, 9)
+    }
+
+    private var resultsSheet: some View {
+        VStack(spacing: 9) {
+            Capsule()
+                .fill(.white.opacity(0.56))
+                .frame(width: 58, height: 5)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 9)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 12).onEnded { motion in
+                    if motion.translation.height < -45 { sheetExpanded = true }
+                    if motion.translation.height > 45 { sheetExpanded = false }
+                })
+            HStack {
+                Text("Nearby places").font(.headline.weight(.bold))
+                Spacer()
+                if model.loading { ProgressView().controlSize(.small) }
+                Text("\(model.places.count) results")
+                    .font(.caption)
+                    .foregroundStyle(MXPremiumStyle.muted)
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) { sheetExpanded.toggle() }
+                } label: {
+                    Image(systemName: sheetExpanded ? "chevron.down" : "chevron.up")
+                        .frame(width: 34, height: 30)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+
+            if let error = model.error, model.places.isEmpty && !model.loading {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(MXPremiumStyle.muted)
+                    .padding(.horizontal, 14)
+            } else if center == nil {
+                Text("Select a location on Explore first.")
+                    .font(.caption)
+                    .foregroundStyle(MXPremiumStyle.muted)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 9) {
+                        if let c = center {
+                            ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
+                                MXPremiumVenueCard(item: item, center: c, category: category, compact: true) {
+                                    mapPosition = .region(MKCoordinateRegion(
+                                        center: item.placemark.coordinate,
+                                        latitudinalMeters: 1700,
+                                        longitudinalMeters: 1700
+                                    ))
+                                    selectedVenue = item
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                }
+                .scrollIndicators(.hidden)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: sheetExpanded ? 460 : 205, alignment: .top)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(.white.opacity(0.12)))
+        .shadow(color: .black.opacity(0.3), radius: 18, y: -3)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 4)
     }
 }
 
