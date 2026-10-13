@@ -1,4 +1,4 @@
-name: Build MX Location Pro Apple + OpenStreetMap 4.7.0
+name: Build MX Location Pro Unified Dark Maps 4.7.1
 
 on:
   push:
@@ -58,13 +58,14 @@ jobs:
           python3 scripts/patch_v142_features.py Locus-src
           python3 scripts/patch_mx_pro.py Locus-src
           python3 scripts/patch_dating_edition.py Locus-src
+          python3 scripts/patch_maplibre_fullscreen.py Locus-src
           cp assets/MXAppIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           python3 - <<'PY'
           from pathlib import Path
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.7.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "70"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.7.1"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "71"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -163,6 +164,34 @@ jobs:
           print('Settings-only Apple/OpenStreetMap switch, native MapLibre and zero Google SDK verified.')
           PY
 
+      - name: Check universal dark fullscreen map surfaces
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('Locus-src/Locus/Features/Map')
+          provider=(p/'MXOpenStreetMapProvider.swift').read_text()
+          map_home=(p/'MapHomeView.swift').read_text()
+          shell=(p/'MXProPremiumShell.swift').read_text()
+          section=shell[shell.index('struct MXPremiumCategoryScreen: View {'):shell.index('struct MXPremiumSavedScreen: View {')]
+          assert 'https://tiles.openfreemap.org/styles/dark' in provider
+          assert 'https://tiles.openfreemap.org/styles/liberty' not in provider
+          assert 'struct MXOpenStreetVenueMapCanvas' in provider
+          assert 'func mapView(_ mapView: MLNMapView, didSelect annotation:' in provider
+          assert '.ignoresSafeArea(.container, edges: [.top, .bottom])' in map_home
+          assert 'mapChoice.selected == .osm' in section
+          assert 'MXOpenStreetVenueMapCanvas(' in section
+          assert '.ignoresSafeArea(.container, edges: .all)' in section
+          assert 'focusedVenue = item.placemark.coordinate' in section
+          assert 'mapPosition = .region(' in section
+          assert '.environment(\\.colorScheme, .dark)' in section
+          assert 'MXMapProviderPicker' not in section
+          assert 'MXMapSettingsScreen()' in shell
+          assert 'Apple Maps' in provider and 'OpenStreetMap' in provider
+          assert 'MapReader { proxy in' in map_home
+          print('Dark full-bleed home/category MapLibre, venue selection, Apple fallback and Settings-only switching validated.')
+          PY
+
       - name: Build for iPhone without code signing
         shell: bash
         run: |
@@ -190,17 +219,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.7.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.7.1-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.7.0-unsigned.ipa > MX-Location-Pro-v4.7.0-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.7.1-unsigned.ipa > MX-Location-Pro-v4.7.1-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.7.0
+          name: MX-Location-Pro-Dating-v4.7.1
           path: |
-            MX-Location-Pro-v4.7.0-unsigned.ipa
-            MX-Location-Pro-v4.7.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.7.1-unsigned.ipa
+            MX-Location-Pro-v4.7.1-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
