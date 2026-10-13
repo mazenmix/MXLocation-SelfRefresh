@@ -1,4 +1,4 @@
-name: Build MX Location Pro Dating 4.4
+name: Build MX Location Pro Dating 4.5.1
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.5.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "50"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.5.1"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "51"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -113,6 +113,28 @@ jobs:
           print('Top toast, Saved reordering/editing/weather, Wingman and adults categories verified.')
           PY
 
+      - name: Verify keyboard-safe searchable map and unobstructed suggestions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("Locus-src/Locus/Features/Map")
+          map_home=(p/"MapHomeView.swift").read_text()
+          dating=(p/"MXDatingEdition.swift").read_text()
+          premium=(p/"MXProPremiumShell.swift").read_text()
+          assert 'GeometryReader { searchLayout in' in map_home, "Map does not constrain keyboard search layout"
+          assert 'searchResults(maxHeight:' in map_home, "Search list not height bounded"
+          assert 'mxSearchScrollableResults' in map_home, "Scrollable results missing"
+          assert 'LazyVStack(spacing: 0)' in map_home, "Search results are not lazy"
+          assert 'mxSearchKeyboardDone' in map_home, "Keyboard dismissal action missing"
+          assert 'if !searchFocused {' in map_home, "Map controls not hidden during search"
+          assert 'premiumNavigation.isSearchActive = focused' in map_home
+          assert 'navigation.isSearchActive ? 0 : 1' in dating, "Overlapping category chips not hidden"
+          assert '@Published var isSearchActive' in premium, "Shared search state missing"
+          assert 'mxFloatingFullscreenHeader' in premium, "Adults immersive screen missing"
+          print("Keyboard-safe scroll results, pinned search field, restored map and category visibility checked")
+          PY
+
       - name: Build for iPhone without code signing
         shell: bash
         run: |
@@ -140,17 +162,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.5.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.5.1-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.5.0-unsigned.ipa > MX-Location-Pro-v4.5.0-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.5.1-unsigned.ipa > MX-Location-Pro-v4.5.1-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.5.0
+          name: MX-Location-Pro-Dating-v4.5.1
           path: |
-            MX-Location-Pro-v4.5.0-unsigned.ipa
-            MX-Location-Pro-v4.5.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.5.1-unsigned.ipa
+            MX-Location-Pro-v4.5.1-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
