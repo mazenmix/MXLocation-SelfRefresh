@@ -51,6 +51,10 @@ assert source.exists()
 venue_source = repo / "overlays/MXVenueEnrichment.swift"
 assert venue_source.is_file(), "Venue imagery / contacts overlay missing"
 (target / venue_source.name).write_bytes(venue_source.read_bytes())
+# Shared verified real-venue imagery for cards and swipeable place details.
+photo_source = repo / "overlays/MXVenuePhotos.swift"
+assert photo_source.is_file(), "Official-site / OSM venue photos overlay missing"
+(target / photo_source.name).write_bytes(photo_source.read_bytes())
 
 # Existing shortcuts now open Dating Radar inside Explore instead of a removed tab.
 map_file = target / "MapHomeView.swift"
@@ -405,6 +409,8 @@ if map_text.count(map_start) != 1 or map_text.count(map_end) != 1:
 start = map_text.index(map_start)
 end = map_text.index(map_end, start) + len(map_end)
 apple_map = map_text[start:end]
+# Both main Apple MapKit and category Apple Maps must honor user-requested dark mode.
+apple_map += chr(10) + '                .environment(\\.colorScheme, .dark)'
 switched_map = '''            if mapChoice.selected == .osm {
                 MXOpenStreetMapCanvas(
                     selectedPin: session.pin,
