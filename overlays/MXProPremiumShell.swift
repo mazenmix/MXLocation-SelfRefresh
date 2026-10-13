@@ -223,47 +223,23 @@ struct MXProPremiumRoot: View {
 
 // Look Around imagery is licensed by MapKit and may be unavailable at some venues.
 // A graceful gradient placeholder is used when no photo is offered.
+// Saved coordinates are not necessarily businesses. Do not depict a random
+// street map as a venue photograph in the Saved tab.
 struct MXPremiumVenueImage: View {
     let coordinate: CLLocationCoordinate2D
-    var symbol = "mappin.and.ellipse"
+    var symbol = "bookmark.fill"
     var color = MXPremiumStyle.cyan
-    @State private var image: UIImage?
-    @State private var imageCaption = "Loading verified imagery"
-
-    private var requestKey: String {
-        String(format: "%.5f:%.5f", coordinate.latitude, coordinate.longitude)
-    }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            Color(red: 0.84, green: 0.89, blue: 0.88)
-            if let image {
-                Image(uiImage: image)
-                    .resizable().scaledToFill()
-            } else {
-                ProgressView().tint(.gray)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            if image != nil {
-                Text(imageCaption)
-                    .font(.system(size: 9, weight: .bold))
-                    .padding(.horizontal, 6).padding(.vertical, 4)
-                    .foregroundStyle(.white)
-                    .background(.black.opacity(0.65), in: Capsule())
-                    .padding(5)
-            }
+        ZStack {
+            LinearGradient(colors: [color.opacity(0.27), MXPremiumStyle.panel],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            Image(systemName: symbol)
+                .font(.system(size: 23, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.88))
         }
         .clipped()
-        .task(id: requestKey) {
-            image = nil
-            if let street = await MXVenueOpenData.streetView(coordinate) {
-                image = street
-                imageCaption = "Street view"
-            } else if let snapshot = await MXVenueOpenData.mapPreview(coordinate) {
-                image = snapshot
-                imageCaption = "Map preview"
-            }
-        }
+        .accessibilityLabel("Saved coordinate")
     }
 }
 
