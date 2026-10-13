@@ -117,7 +117,7 @@ if map_text.count(env_anchor) != 1:
     raise RuntimeError("Premium map EnvironmentObject anchor missing")
 map_text = map_text.replace(env_anchor, env_anchor +
     "\n    @EnvironmentObject private var premiumNavigation: MXPremiumNavigation", 1)
-bar_anchor = "                Spacer(minLength: 0)\n\n                HStack {\n                    Spacer()\n                    locateButton"
+bar_anchor = "                if showWorldActiveBanner, let world = activeWorldBanner {"
 if map_text.count(bar_anchor) != 1:
     raise RuntimeError("Map category bar anchor missing")
 bar = """                ScrollView(.horizontal, showsIndicators: false) {
@@ -151,9 +151,7 @@ bar = """                ScrollView(.horizontal, showsIndicators: false) {
                 .accessibilityIdentifier("mxPremiumMapCategories")
                 Spacer(minLength: 0)
 
-                HStack {
-                    Spacer()
-                    locateButton"""
+                if showWorldActiveBanner, let world = activeWorldBanner {"""
 map_text = map_text.replace(bar_anchor, bar, 1)
 # The initial MX Pro launcher remains accessible from Map as a separate entry.
 map_home.write_text(map_text, encoding="utf-8")
