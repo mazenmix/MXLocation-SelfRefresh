@@ -77,6 +77,23 @@ enum MXWingmanTone: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum MXWingmanGoal: String, CaseIterable, Identifiable {
+    case first = "First Impression"
+    case chemistry = "Build Chemistry"
+    case meaningful = "Deeper Conversation"
+    case date = "Ask for a Date"
+    case reconnect = "Reconnect"
+    case boundaries = "Boundaries"
+    case afterDark = "Confident 18+"
+    var id: String { rawValue }
+}
+enum MXWingmanLength: String, CaseIterable, Identifiable {
+    case concise = "Short"
+    case natural = "Natural"
+    case expanded = "Detailed"
+    var id: String { rawValue }
+}
+
 enum MXWingmanLanguage: String, CaseIterable, Identifiable {
     case english = "English"
     case tagalog = "Tagalog"
@@ -100,6 +117,10 @@ struct MXDatingWingmanScreen: View {
     @FocusState private var inputFocused: Bool
     @FocusState private var translationFocused: Bool
     @State private var tone: MXWingmanTone = .gentleman
+    @State private var goal: MXWingmanGoal = .chemistry
+    @State private var length: MXWingmanLength = .natural
+    @AppStorage("mxWingmanConversationContext") private var chatContext = ""
+    @State private var copiedIndex: Int?
     @State private var language: MXWingmanLanguage = .english
     @State private var replies: [String] = []
     @State private var why = ""
@@ -175,6 +196,25 @@ struct MXDatingWingmanScreen: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            HStack(spacing: 10) {
+                                Picker("Goal", selection: $goal) {
+                                    ForEach(MXWingmanGoal.allCases) { item in
+                                        Text(item.rawValue).tag(item)
+                                    }
+                                }.pickerStyle(.menu)
+                                Picker("Length", selection: $length) {
+                                    ForEach(MXWingmanLength.allCases) { item in
+                                        Text(item.rawValue).tag(item)
+                                    }
+                                }.pickerStyle(.menu)
+                            }
+                            TextField("Context: where you met, interests, vibe (optional)",
+                                      text: $chatContext, axis: .vertical)
+                                .lineLimit(1...3)
+                                .font(.subheadline)
+                                .padding(10)
+                                .background(MXPremiumStyle.background,
+                                            in: RoundedRectangle(cornerRadius: 12))
                             Button {
                                 inputFocused = false
                                 translationFocused = false
@@ -213,8 +253,9 @@ struct MXDatingWingmanScreen: View {
                                         Spacer()
                                         Button {
                                             UIPasteboard.general.string = replies[index]
+                                            copiedIndex = index
                                         } label: {
-                                            Label("Copy", systemImage: "doc.on.doc")
+                                            Label(copiedIndex == index ? "Copied" : "Copy", systemImage: "doc.on.doc")
                                                 .font(.caption.weight(.semibold))
                                         }
                                     }
