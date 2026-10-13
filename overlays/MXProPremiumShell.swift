@@ -89,8 +89,9 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
     var searchTerms: [String] {
         switch self {
         case .dateSpots: ["romantic restaurant", "rooftop restaurant", "date cafe"]
-        case .adultVenues: ["adult entertainment club", "burlesque cabaret", "swingers club",
-                             "strip club", "adult lifestyle club", "adult only nightlife"]
+        case .adultVenues: ["adult entertainment club", "burlesque cabaret", "swingers lifestyle club",
+                             "strip club", "fetish nightclub", "adult cabaret show",
+                             "couples lifestyle lounge", "clothing optional resort"]
         case .afterDark: ["speakeasy bar", "late night lounge", "cabaret club", "nightclub"]
         case .romanticStays: ["boutique hotel", "romantic hotel", "adults only resort"]
         case .socialRadar: ["social club", "community events venue", "popular cafe"]
@@ -142,7 +143,13 @@ final class MXPremiumPlacesModel: ObservableObject {
             let coordinate = place.placemark.coordinate
             let distance = origin.distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
             let key = (place.name ?? "") + String(format: ":%.4f:%.4f", coordinate.latitude, coordinate.longitude)
-            return distance <= radiusKm * 1000 && seen.insert(key).inserted
+            let title = (place.name ?? "").lowercased()
+            let blocked = ["gun club", "shooting", "firearm", "rifle", "detective",
+                           "private investigator", "police", "hospital", "school",
+                           "dental", "clinic", "weapons", "bank"]
+            let unrelated = category == .adultVenues &&
+                blocked.contains(where: { title.contains($0) })
+            return distance <= radiusKm * 1000 && !unrelated && seen.insert(key).inserted
         }.sorted {
             origin.distance(from: CLLocation(latitude: $0.placemark.coordinate.latitude, longitude: $0.placemark.coordinate.longitude)) <
             origin.distance(from: CLLocation(latitude: $1.placemark.coordinate.latitude, longitude: $1.placemark.coordinate.longitude))
@@ -521,8 +528,10 @@ struct MXPremiumCategoryScreen: View {
         switch category {
         case .dateSpots: return ["All", "Restaurants", "Rooftops", "Lounges", "Wine Bars", "Private Dining"]
         case .adultVenues: return ["All", "Adult Clubs", "Swingers Clubs", "Strip Clubs",
-                                   "Burlesque", "Cabaret", "Adult Stores", "Adult Cinemas",
-                                   "Nudist Beaches", "18+ Resorts", "Sensual Spas"]
+                                   "Kink Events", "Fetish Clubs", "Couples Lounges",
+                                   "Burlesque", "Cabaret", "Erotic Shows",
+                                   "Adult Stores", "Adult Cinemas", "Nudist Beaches",
+                                   "18+ Resorts", "Sensual Spas", "After-hours"]
         case .afterDark: return ["All", "Speakeasies", "Rooftops", "Nightclubs", "24H Cafes", "Live Music"]
         case .romanticStays: return ["All", "Boutique Hotels", "18+ Hotels", "Luxury Hotels", "Resorts"]
         case .socialRadar: return ["All", "Cafés", "Groups", "Activities"]
@@ -541,7 +550,12 @@ struct MXPremiumCategoryScreen: View {
         case "Wine Bars": return "wine bar"
         case "Private Dining": return "private dining restaurant"
         case "Adult Clubs": return "adult entertainment club"
-        case "Swingers Clubs": return "swingers club"
+        case "Swingers Clubs": return "swingers lifestyle club"
+        case "Kink Events": return "kink friendly event venue"
+        case "Fetish Clubs": return "fetish club"
+        case "Couples Lounges": return "adult couples lifestyle lounge"
+        case "Erotic Shows": return "adult burlesque show venue"
+        case "After-hours": return "late night adult cabaret lounge"
         case "Strip Clubs": return "strip club"
         case "Burlesque": return "burlesque show venue"
         case "Cabaret": return "cabaret club"
