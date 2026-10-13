@@ -8,57 +8,63 @@ import FoundationModels
 
 // MX Dating Edition: deliberately only two top-level destinations.
 // MapKit, the real location engine, and pairing remain part of the host app.
-enum MXDatingArea: String, CaseIterable, Identifiable {
-    case map = "Map"
-    case radar = "Dating Radar"
-    case location = "GPS Control"
-    var id: String { rawValue }
-}
-
+// One map-first destination. The category chips are real navigation controls;
+// location spoofing remains in the existing map's lower control bar.
 struct MXDatingExploreHome: View {
     @EnvironmentObject private var navigation: MXPremiumNavigation
-    @State private var area: MXDatingArea = .map
+    @AppStorage("mxDatingAdultAccessConfirmed") private var adultConfirmed = false
+    @State private var showAdultConfirmation = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "location.north.circle.fill")
-                    .foregroundStyle(MXPremiumStyle.cyan)
-                Text("MX LOCATION PRO").font(.subheadline.weight(.bold))
-                Spacer()
-                Text("DATING EDITION")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(MXPremiumStyle.muted)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            Picker("Explore mode", selection: $area) {
-                ForEach(MXDatingArea.allCases) { item in
-                    Text(item.rawValue).tag(item)
+        NavigationStack {
+            ZStack(alignment: .top) {
+                MapHomeView()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(MXPremiumCategory.allCases) { category in
+                            Button {
+                                if category == .adultVenues && !adultConfirmed {
+                                    showAdultConfirmation = true
+                                } else {
+                                    open(category)
+                                }
+                            } label: {
+                                Label(category.shortTitle, systemImage: category.symbol)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 12)
+                                    .frame(height: 37)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .overlay(Capsule().stroke(category.tint.opacity(0.48)))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("mxCategory_\(category.rawValue)")
+                        }
+                    }
+                    .padding(.horizontal, 14)
                 }
+                // Stays beneath the map search without covering the map itself.
+                .padding(.top, 74)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            Group {
-                switch area {
-                case .map:
-                    MapHomeView()
-                case .radar:
-                    MXPremiumExploreScreen()
-                case .location:
-                    NavigationStack { MXPremiumLocationControl() }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $navigation.openCategory) {
+                MXPremiumCategoryScreen(category: navigation.category)
+            }
+            .alert("Adults 18+ only", isPresented: $showAdultConfirmation) {
+                Button("I am 18 or older") {
+                    adultConfirmed = true
+                    open(.adultVenues)
                 }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Adult nightlife and sex-positive venue discovery is intended for adults only. Listings come from map search and must be verified with venues.")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(MXPremiumStyle.background)
-        .onChange(of: navigation.openCategory) { _, open in
-            if open { area = .radar }
-        }
-        .onChange(of: navigation.tab) { _, tab in
-            if tab == 0 && navigation.openCategory { area = .radar }
-        }
+    }
+
+    private func open(_ category: MXPremiumCategory) {
+        navigation.category = category
+        navigation.openCategory = true
     }
 }
 
@@ -66,6 +72,8 @@ enum MXWingmanTone: String, CaseIterable, Identifiable {
     case gentleman = "Gentleman"
     case playful = "Playful"
     case flirty = "Flirty"
+    case bold = "Bold"
+    case spicy = "Spicy 18+"
     var id: String { rawValue }
 }
 
@@ -86,7 +94,11 @@ enum MXWingmanLanguage: String, CaseIterable, Identifiable {
 }
 
 struct MXDatingWingmanScreen: View {
-    @State private var incoming = ""
+    @EnvironmentObject private var navigation: MXPremiumNavigation
+    @AppStorage("mxWingmanDraft") private var incoming = ""
+    @AppStorage("mxWingmanSavedReplies") private var savedReplies = ""
+    @FocusState private var inputFocused: Bool
+    @FocusState private var translationFocused: Bool
     @State private var tone: MXWingmanTone = .gentleman
     @State private var language: MXWingmanLanguage = .english
     @State private var replies: [String] = []
@@ -128,6 +140,7 @@ struct MXDatingWingmanScreen: View {
                                 }
                             }
                             TextEditor(text: $incoming)
+                                .focused($inputFocused)
                                 .frame(height: 138)
                                 .padding(7)
                                 .scrollContentBackground(.hidden)
@@ -161,8 +174,10 @@ struct MXDatingWingmanScreen: View {
                                     Text(item.rawValue).tag(item)
                                 }
                             }
-                            .pickerStyle(.segmented)
+                            .pickerStyle(.menu)
                             Button {
+                                inputFocused = false
+                                translationFocused = false
                                 Task { await analyzeMessage() }
                             } label: {
                                 HStack(spacing: 9) {
@@ -237,6 +252,7 @@ struct MXDatingWingmanScreen: View {
                                 .font(.caption)
                                 .foregroundStyle(MXPremiumStyle.muted)
                             TextField("Text to translate", text: $translationInput, axis: .vertical)
+                                .focused($translationFocused)
                                 .lineLimit(2...5)
                                 .textFieldStyle(.roundedBorder)
                             HStack {
@@ -286,9 +302,45 @@ struct MXDatingWingmanScreen: View {
                 }
                 .padding(15)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(MXPremiumStyle.background)
             .navigationTitle("Wingman")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        inputFocused = false
+                        translationFocused = false
+                        navigation.tab = 0
+                    } label: {
+                        Label("Explore", systemImage: "chevron.left")
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        inputFocused = false
+                        translationFocused = false
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .onDisappear {
+                inputFocused = false
+                translationFocused = false
+            }
+            .onAppear {
+                if let data = savedReplies.data(using: .utf8),
+                   let restored = try? JSONDecoder().decode([String].self, from: data) {
+                    replies = restored
+                }
+            }
+            .onChange(of: replies) { _, value in
+                if let data = try? JSONEncoder().encode(value),
+                   let text = String(data: data, encoding: .utf8) {
+                    savedReplies = text
+                }
+            }
             .translationTask(translationConfig) { session in
                 do {
                     let result = try await session.translate(translationInput)
@@ -346,12 +398,13 @@ struct MXDatingWingmanScreen: View {
                     Create authentic, concise, natural messages; respect consent and boundaries.
                     Never fabricate knowledge about another person's emotions or imply certainty.
                     Answer in English. Use exactly 5 lines, each beginning with its label:
-                    ONE|<reply>
-                    TWO|<reply>
-                    THREE|<reply>
-                    WHY|<short explanation>
-                    NEXT|<one specific next step>
-                    Do not add any other lines.
+                    ONE|reply text
+                    TWO|reply text
+                    THREE|reply text
+                    WHY|short explanation
+                    NEXT|one specific next step
+                    Do not add any other lines, angle brackets, tags, or markdown fences.
+                    A spicy tone may be daring but must remain between consenting adults.
                     """
                 let prompt = """
                     Conversation to respond to:
@@ -363,8 +416,18 @@ struct MXDatingWingmanScreen: View {
                 let result = try await session.respond(to: prompt)
                 let lines = result.content.components(separatedBy: .newlines)
                 func extract(_ key: String) -> String? {
-                    lines.first(where: { $0.hasPrefix(key + "|") })
-                        .map { String($0.dropFirst(key.count + 1)).trimmingCharacters(in: .whitespaces) }
+                    guard let line = lines.first(where: { $0.hasPrefix(key + "|") }) else { return nil }
+                    var value = String(line.dropFirst(key.count + 1))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    // Foundation Models may copy <placeholder> delimiters literally.
+                    while value.count > 2 && value.hasPrefix("<") && value.hasSuffix(">") {
+                        value = String(value.dropFirst().dropLast())
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    if value.count > 2 && value.hasPrefix("`") && value.hasSuffix("`") {
+                        value = String(value.dropFirst().dropLast())
+                    }
+                    return value
                 }
                 if let a = extract("ONE"), let b = extract("TWO"), let c = extract("THREE"),
                    !a.isEmpty, !b.isEmpty, !c.isEmpty {
@@ -407,7 +470,11 @@ struct MXDatingWingmanScreen: View {
             why = "Open-ended questions invite real conversation without pretending to know their feelings."
             nextStep = "Follow up on one detail from their reply instead of sending multiple messages."
         }
-        if tone == .flirty {
+        if tone == .spicy {
+            replies[1] = "You're making it difficult not to flirt with you 😉 Is that intentional?"
+        } else if tone == .bold {
+            replies[1] = "I like our chemistry. I'd love to take you on a proper date if you're up for it."
+        } else if tone == .flirty {
             replies[1] = "You have an interesting way of telling stories 😉 I'd like to hear more."
         } else if tone == .playful {
             replies[1] = "Okay, now you've got my curiosity working overtime 😄 Tell me more!"
