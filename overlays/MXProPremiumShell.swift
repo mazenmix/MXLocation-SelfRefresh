@@ -228,32 +228,40 @@ struct MXPremiumVenueImage: View {
     var symbol = "mappin.and.ellipse"
     var color = MXPremiumStyle.cyan
     @State private var image: UIImage?
+    @State private var imageCaption = "Loading verified imagery"
 
     private var requestKey: String {
         String(format: "%.5f:%.5f", coordinate.latitude, coordinate.longitude)
     }
 
     var body: some View {
-        ZStack {
-            LinearGradient(colors: [color.opacity(0.58), MXPremiumStyle.panel, MXPremiumStyle.background],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        ZStack(alignment: .bottomLeading) {
+            Color(red: 0.84, green: 0.89, blue: 0.88)
             if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+                Image(uiImage: image)
+                    .resizable().scaledToFill()
             } else {
-                Image(systemName: symbol)
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                ProgressView().tint(.gray)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            if image != nil {
+                Text(imageCaption)
+                    .font(.system(size: 9, weight: .bold))
+                    .padding(.horizontal, 6).padding(.vertical, 4)
+                    .foregroundStyle(.white)
+                    .background(.black.opacity(0.65), in: Capsule())
+                    .padding(5)
             }
         }
         .clipped()
         .task(id: requestKey) {
             image = nil
-            guard let scene = try? await MKLookAroundSceneRequest(coordinate: coordinate).scene else { return }
-            let options = MKLookAroundSnapshotter.Options()
-            options.size = CGSize(width: 260, height: 260)
-            let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
-            if let result = try? await snapshotter.snapshot {
-                image = result.image
+            if let street = await MXVenueOpenData.streetView(coordinate) {
+                image = street
+                imageCaption = "Street view"
+            } else if let snapshot = await MXVenueOpenData.mapPreview(coordinate) {
+                image = snapshot
+                imageCaption = "Map preview"
             }
         }
     }
@@ -313,27 +321,24 @@ struct MXPremiumVenueDetails: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    MXPremiumVenueImage(coordinate: item.placemark.coordinate)
-                        .frame(height: 210).clipShape(RoundedRectangle(cornerRadius: 20))
+                    MXVenuePhotoGallery(item: item)
                     Text(item.name ?? "Venue").font(.title2.weight(.bold))
                     Text(item.placemark.title ?? "No address supplied")
                         .foregroundStyle(MXPremiumStyle.muted)
                     MXPremiumPanel {
-                        VStack(alignment: .leading, spacing: 12) {
+                        MXVenueContactDetails(item: item)
+                    }
+                    MXPremiumPanel {
+                        VStack(alignment: .leading, spacing: 13) {
+                            Text("Location actions").font(.headline)
                             Button { item.openInMaps() } label: {
-                                Label("Open in Apple Maps — details & directions",
-                                      systemImage: "map.fill")
-                            }
-                            if let url = item.url {
-                                Link(destination: url) {
-                                    Label("Venue website", systemImage: "link")
-                                }
+                                Label("Directions in Apple Maps", systemImage: "map.fill")
                             }
                             Button {
                                 session.addFavorite(name: item.name ?? "Saved place",
                                                     coordinate: item.placemark.coordinate)
                             } label: {
-                                Label("Save location", systemImage: "bookmark")
+                                Label("Save to Favorites", systemImage: "bookmark")
                             }
                             Button {
                                 session.pin = item.placemark.coordinate
@@ -350,18 +355,19 @@ struct MXPremiumVenueDetails: View {
                         }
                         .tint(MXPremiumStyle.cyan)
                     }
-                    Text("Photos depend on Apple Look Around availability. No ratings, prices, or live attendance are inferred.")
-                        .font(.caption2).foregroundStyle(MXPremiumStyle.muted)
                 }
                 .padding(16)
             }
             .background(MXPremiumStyle.background)
             .navigationTitle("Place Details")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) {
-                Button("Done") { dismiss() }
-            }}
-        }.preferredColorScheme(.dark)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -514,6 +520,7 @@ struct MXPremiumExploreScreen: View {
 struct MXPremiumCategoryScreen: View {
     let category: MXPremiumCategory
     @EnvironmentObject private var session: SpoofSession
+    @EnvironmentObject private var mapChoice: MXMapChoiceStore
     @StateObject private var model = MXPremiumPlacesModel()
     @State private var radius = 5.0
     @State private var subfilter = "All"
@@ -612,7 +619,8 @@ struct MXPremiumCategoryScreen: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .top) {
-                fullScreenMap.ignoresSafeArea()
+                fullScreenMap
+                    .ignoresSafeArea(.container, edges: .all)
                 VStack(spacing: 8) {
                     floatingHeader
                     glassFilters
@@ -625,8 +633,9 @@ struct MXPremiumCategoryScreen: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .background(MXPremiumStyle.background)
-            .ignoresSafeArea()
+            .ignoresSafeArea(.container, edges: .all)
         }
+        .ignoresSafeArea(.container, edges: .all)
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .navigationBarBackButtonHidden(true)
@@ -680,7 +689,17 @@ struct MXPremiumCategoryScreen: View {
     }
 
     private var fullScreenMap: some View {
-        Map(position: $mapPosition) {
+        Group {
+            if mapChoice.selected == .osm {
+                MXOpenStreetVenueMapCanvas(
+                    center: center,
+                    venues: model.places,
+                    focusedVenue: selectedVenue?.placemark.coordinate,
+                    onSelectVenue: { selectedVenue = $0 }
+                )
+                .accessibilityIdentifier("mxOpenStreetNearbyFullscreen")
+            } else {
+                Map(position: $mapPosition) {
             if let c = center {
                 Annotation("Selected", coordinate: c) {
                     Image(systemName: "location.circle.fill")
@@ -706,9 +725,13 @@ struct MXPremiumCategoryScreen: View {
                 }
             }
         }
-        .mapStyle(.standard(elevation: .realistic))
-        .mapControlVisibility(.hidden)
-        .ignoresSafeArea()
+                .mapStyle(.standard(elevation: .realistic))
+                .mapControlVisibility(.hidden)
+                .environment(\.colorScheme, .light)
+                .accessibilityIdentifier("mxAppleNearbyFullscreen")
+            }
+        }
+        .ignoresSafeArea(.container, edges: .all)
     }
 
     // Floating chips keep the map visible without the former full-width grey card.
