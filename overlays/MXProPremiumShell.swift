@@ -748,75 +748,137 @@ struct MXPremiumCategoryScreen: View {
         .accessibilityIdentifier("mxCompactFloatingVenueFilters")
     }
 
-    private var resultsSheet: some View {
-        VStack(spacing: 9) {
-            Capsule()
-                .fill(.white.opacity(0.56))
-                .frame(width: 58, height: 5)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 9)
-                .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 12).onEnded { motion in
-                    if motion.translation.height < -45 { sheetExpanded = true }
-                    if motion.translation.height > 45 { sheetExpanded = false }
-                })
-            HStack {
-                Text("Nearby places").font(.headline.weight(.bold))
-                Spacer()
-                if model.loading { ProgressView().controlSize(.small) }
-                Text("\(model.places.count) results")
-                    .font(.caption)
-                    .foregroundStyle(MXPremiumStyle.muted)
-                Button {
-                    withAnimation(.snappy(duration: 0.25)) { sheetExpanded.toggle() }
-                } label: {
-                    Image(systemName: sheetExpanded ? "chevron.down" : "chevron.up")
-                        .frame(width: 34, height: 30)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 14)
+    private func snapHeight(_ level: NearbyDetent, available: CGFloat) -> CGFloat {
+        let expanded = max(310, available * 0.76)
+        switch level {
+        case .collapsed: return 100
+        case .medium: return min(expanded - 90, max(250, available * 0.35))
+        case .expanded: return expanded
+        }
+    }
 
-            if let error = model.error, model.places.isEmpty && !model.loading {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(MXPremiumStyle.muted)
-                    .padding(.horizontal, 14)
-            } else if center == nil {
-                Text("Select a location on Explore first.")
-                    .font(.caption)
-                    .foregroundStyle(MXPremiumStyle.muted)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 9) {
-                        if let c = center {
-                            ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
-                                MXPremiumVenueCard(item: item, center: c, category: category, compact: true) {
-                                    mapPosition = .region(MKCoordinateRegion(
-                                        center: item.placemark.coordinate,
-                                        latitudinalMeters: 1700,
-                                        longitudinalMeters: 1700
-                                    ))
-                                    selectedVenue = item
+    private func draggedHeight(_ available: CGFloat) -> CGFloat {
+        let base = snapHeight(detent, available: available)
+        return min(snapHeight(.expanded, available: available),
+                   max(snapHeight(.collapsed, available: available),
+                       base - draggingSheet))
+    }
+
+    private func snapTarget(_ projectedHeight: CGFloat, available: CGFloat) -> NearbyDetent {
+        NearbyDetent.allCases.min {
+            abs(snapHeight($0, available: available) - projectedHeight) <
+            abs(snapHeight($1, available: available) - projectedHeight)
+        } ?? .medium
+    }
+
+    private func dragResults(_ available: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .updating($draggingSheet) { gesture, value, _ in
+                value = gesture.translation.height
+            }
+            .onEnded { gesture in
+                let projected = snapHeight(detent, available: available) -
+                    gesture.predictedEndTranslation.height
+                withAnimation(.interactiveSpring(response: 0.44, dampingFraction: 0.86)) {
+                    detent = snapTarget(projected, available: available)
+                }
+            }
+    }
+
+    private func resultsSheet(availableHeight: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 10) {
+                Capsule()
+                    .fill(.white.opacity(0.44))
+                    .frame(width: 39, height: 4)
+                    .padding(.top, 11)
+
+                HStack(spacing: 9) {
+                    Text("Nearby places")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    if model.loading { ProgressView().controlSize(.small) }
+                    Text("\(model.places.count) results")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(MXPremiumStyle.muted)
+                    Button {
+                        withAnimation(.interactiveSpring(response: 0.44, dampingFraction: 0.86)) {
+                            detent = detent == .expanded ? .medium : .expanded
+                        }
+                    } label: {
+                        Image(systemName: detent == .expanded ? "chevron.down" : "chevron.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(width: 34, height: 34)
+                            .foregroundStyle(.white)
+                            .background(.white.opacity(0.07), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(detent == .expanded ? "Reduce nearby list" : "Expand nearby list")
+                }
+                .padding(.horizontal, 17)
+                .padding(.bottom, 8)
+            }
+            .contentShape(Rectangle())
+            .gesture(dragResults(availableHeight))
+            .accessibilityIdentifier("mxSmoothNearbyDragHandle")
+
+            if detent != .collapsed || draggingSheet < -24 {
+                if let error = model.error, model.places.isEmpty && !model.loading {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(MXPremiumStyle.muted)
+                        .padding(.horizontal, 17)
+                        .padding(.top, 8)
+                } else if center == nil {
+                    Text("Select a location on Explore first.")
+                        .font(.footnote)
+                        .foregroundStyle(MXPremiumStyle.muted)
+                        .padding(.horizontal, 17)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 9) {
+                            if let c = center {
+                                ForEach(Array(model.places.enumerated()), id: \.offset) { _, item in
+                                    MXPremiumVenueCard(item: item, center: c, category: category, compact: true) {
+                                        withAnimation(.easeInOut(duration: 0.25)) {
+                                            mapPosition = .region(MKCoordinateRegion(
+                                                center: item.placemark.coordinate,
+                                                latitudinalMeters: 1700,
+                                                longitudinalMeters: 1700
+                                            ))
+                                        }
+                                        selectedVenue = item
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.top, 4)
+                        .padding(.bottom, 25)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    .scrollIndicators(.hidden)
+                    .scrollDisabled(detent == .collapsed)
                 }
-                .scrollIndicators(.hidden)
             }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: sheetExpanded ? 460 : 205, alignment: .top)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(.white.opacity(0.12)))
-        .shadow(color: .black.opacity(0.3), radius: 18, y: -3)
-        .padding(.horizontal, 10)
-        .padding(.bottom, 4)
+        .frame(height: draggedHeight(availableHeight), alignment: .top)
+        .background(
+            MXPremiumStyle.panel.opacity(0.96),
+            in: UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
+        )
+        .overlay(alignment: .top) {
+            UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
+                .stroke(.white.opacity(0.065), lineWidth: 0.7)
+        }
+        .shadow(color: .black.opacity(0.25), radius: 15, y: -3)
+        .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.86),
+                   value: detent)
+        .accessibilityIdentifier("mxNearbyThreeDetentSheet")
     }
+
 }
 
 struct MXPremiumSavedScreen: View {
