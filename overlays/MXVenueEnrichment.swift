@@ -212,7 +212,7 @@ struct MXVenuePhotoGallery: View {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 29, weight: .light))
                             .foregroundStyle(.white.opacity(0.7))
-                        Text("No confirmed photos for this venue")
+                        Text("No confirmed venue photo available")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
                         Text("We won't substitute a street map or another business's pictures.")
@@ -228,7 +228,7 @@ struct MXVenuePhotoGallery: View {
                 } else {
                     VStack(spacing: 10) {
                         ProgressView().tint(.white)
-                        Text("Finding actual venue photos…")
+                        Text("Checking venue photo sources…")
                             .font(.caption).foregroundStyle(.white.opacity(0.7))
                     }
                 }
@@ -241,7 +241,7 @@ struct MXVenuePhotoGallery: View {
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
-        .task(id: MXVenuePhotoSource.key(item)) { library.load(item) }
+        .task(id: MXVenuePhotoSource.key(item)) { library.load(item, priority: true) }
     }
 }
 
