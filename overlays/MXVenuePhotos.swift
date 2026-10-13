@@ -28,10 +28,52 @@ enum MXVenuePhotoSource {
                     image: image, label: "Image · verified OpenStreetMap listing", source: url))
             }
         }
+        // Wikidata item is accepted ONLY when inherited from an exact-name,
+        // nearby OpenStreetMap venue. Never match an image by broad text search.
+        if pictures.isEmpty, let id = profile.wikidataID {
+            pictures += await wikidataPictures(id)
+        }
         if item.url == nil, let site = profile.site {
             pictures += await imagesFromWebsite(site, label: "Image · venue's official website")
         }
         return pictures
+    }
+
+    // The linked Wikidata P18 image is a second, free, identity-verified source.
+    // No random nearby photos, street screenshots or unrelated search thumbnails.
+    private static func wikidataPictures(_ id: String) async -> [MXVenueVisual] {
+        var components = URLComponents(string: "https://www.wikidata.org/w/api.php")
+        components?.queryItems = [
+            URLQueryItem(name: "action", value: "wbgetclaims"),
+            URLQueryItem(name: "entity", value: id),
+            URLQueryItem(name: "property", value: "P18"),
+            URLQueryItem(name: "format", value: "json")
+        ]
+        guard let url = components?.url else { return [] }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              data.count < 700_000,
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let claims = root["claims"] as? [String: Any],
+              let images = claims["P18"] as? [[String: Any]] else { return [] }
+        for claim in images.prefix(2) {
+            guard let snak = claim["mainsnak"] as? [String: Any],
+                  let dataValue = snak["datavalue"] as? [String: Any],
+                  let filename = dataValue["value"] as? String, !filename.isEmpty,
+                  let escaped = filename.replacingOccurrences(of: " ", with: "_")
+                      .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                  let file = URL(string: "https://commons.wikimedia.org/wiki/Special:FilePath/" + escaped),
+                  let bitmap = await MXVenueOpenData.photo(file) else { continue }
+            return [MXVenueVisual(
+                id: "wikidata-\(id)-\(filename)",
+                image: bitmap,
+                label: "Image · verified venue-linked Wikimedia",
+                source: URL(string: "https://commons.wikimedia.org/wiki/File:" + escaped)
+            )]
+        }
+        return []
     }
 
     private static func imagesFromWebsite(_ url: URL, label: String) async -> [MXVenueVisual] {
@@ -123,6 +165,7 @@ final class MXVenuePhotoLibrary: ObservableObject {
     @Published private(set) var checked: Set<String> = []
     private var inFlight: Set<String> = []
     private var priorityRequests: Set<String> = []
+    private var lastAttempted: [String: Date] = [:]
 
     // A missing or slow photo source must never block the view indefinitely.
     // The seven-second UI deadline affects the spinner only: source fetching
@@ -160,7 +203,15 @@ final class MXVenuePhotoLibrary: ObservableObject {
             }
             return
         }
-        guard !checked.contains(key) else { return }
+        // A temporary network failure must not permanently block this venue.
+        // Retry an empty result after ten minutes, without spamming photo APIs.
+        if checked.contains(key) {
+            guard images[key, default: []].isEmpty,
+                  Date().timeIntervalSince(lastAttempted[key] ?? .distantPast) >= 600
+            else { return }
+        }
+        checked.remove(key)
+        lastAttempted[key] = Date()
         inFlight.insert(key)
         armUIWatchdog(for: key)
         Task { @MainActor in
