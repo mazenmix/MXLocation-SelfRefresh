@@ -1,4 +1,4 @@
-name: Build MX Location Pro Dating 4.6.0
+name: Build MX Location Pro Apple + OpenStreetMap 4.7.0
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.6.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "60"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.7.0"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "70"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -135,7 +135,7 @@ jobs:
           print("Keyboard-safe scroll results, pinned search field, restored map and category visibility checked")
           PY
 
-      - name: Check native Apple and Google map integration
+      - name: Check native Apple and OpenStreetMap/MapLibre integration
         shell: bash
         run: |
           python3 - <<'PY'
@@ -143,22 +143,24 @@ jobs:
           root=Path("Locus-src")
           p=root/"Locus/Features/Map"
           project=(root/"project.yml").read_text()
-          google=(p/"MXGoogleMapsProvider.swift").read_text()
+          maplibre=(p/"MXOpenStreetMapProvider.swift").read_text()
           premium=(p/"MXProPremiumShell.swift").read_text()
-          dating=(p/"MXDatingEdition.swift").read_text()
           map_home=(p/"MapHomeView.swift").read_text()
-          assert 'exactVersion: 11.2.0' in project and 'product: GoogleMaps' in project
-          assert 'import GoogleMaps' in google
-          assert 'GMSMapView(options: options)' in google and 'GMSServices.provideAPIKey' in google
-          assert 'MXGoogleMapCanvas(' in map_home and 'MapReader { proxy in' in map_home
+          dating=(p/"MXDatingEdition.swift").read_text()
+          assert 'exactVersion: 6.31.0' in project and 'product: MapLibre' in project
+          assert 'GoogleMaps' not in project and 'product: GoogleMaps' not in project
+          assert 'import MapLibre' in maplibre and 'MLNMapView(frame: .zero, styleURL:' in maplibre
+          assert 'https://tiles.openfreemap.org/styles/liberty' in maplibre
+          assert 'MXOpenStreetMapCanvas(' in map_home and 'MapReader { proxy in' in map_home
           assert 'session.pin' in map_home and 'session.simulated' in map_home
-          assert 'MXMapProviderPicker()' in dating and 'MXGoogleMapSetupSheet()' in dating
           assert 'MXMapChoiceStore()' in premium and '.environmentObject(mapChoice)' in premium
-          assert 'Remember my choice' in google and 'MXGoogleAPIKey.save' in google
-          assert 'kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly' in google
-          assert 'GMSServices.openSourceLicenseInfo()' in google
-          assert 'com.mazenmix.mxlocationpro' in google
-          print('Real Google SDK, Apple fallback, saved choice, secure on-device API key and legal notices verified.')
+          assert 'MXMapSettingsScreen()' in premium and 'Label("Settings"' in premium
+          assert 'MXMapProviderPicker()' not in dating, "Map switch leaked into Explore"
+          assert 'Google Maps' not in dating, "Google map option survived"
+          assert 'Remember my choice' in maplibre
+          assert 'mxMapProviderSettingsPicker' in maplibre
+          assert 'map.attributionButton.isHidden = false' in maplibre
+          print('Settings-only Apple/OpenStreetMap switch, native MapLibre and zero Google SDK verified.')
           PY
 
       - name: Build for iPhone without code signing
@@ -188,17 +190,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.6.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.7.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.6.0-unsigned.ipa > MX-Location-Pro-v4.6.0-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.7.0-unsigned.ipa > MX-Location-Pro-v4.7.0-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.6.0
+          name: MX-Location-Pro-Dating-v4.7.0
           path: |
-            MX-Location-Pro-v4.6.0-unsigned.ipa
-            MX-Location-Pro-v4.6.0-unsigned.ipa.sha256
+            MX-Location-Pro-v4.7.0-unsigned.ipa
+            MX-Location-Pro-v4.7.0-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
