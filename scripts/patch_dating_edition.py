@@ -220,12 +220,12 @@ new_bottom = """                    if !searchFocused {
 if map_text.count(old_bottom) != 1:
     raise RuntimeError("Bottom map controls anchor missing")
 map_text = map_text.replace(old_bottom, new_bottom, 1)
-end_anchor = ("            .padding(.bottom, 10)" + chr(10) +
+end_anchor = ("            .padding(.bottom, 2)" + chr(10) +
               "        }" + chr(10) + "        .overlay(alignment: .top) {")
 if map_text.count(end_anchor) != 1:
     raise RuntimeError("Map search geometry boundary missing")
 map_text = map_text.replace(end_anchor,
-    "                .padding(.bottom, 10)" + chr(10) +
+    "                .padding(.bottom, 2)" + chr(10) +
     "            }" + chr(10) +
     "        }" + chr(10) +
     "        .overlay(alignment: .top) {", 1)
