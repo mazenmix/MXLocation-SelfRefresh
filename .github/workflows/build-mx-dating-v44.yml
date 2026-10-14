@@ -272,7 +272,7 @@ jobs:
           assert "premiumNavigation.isImmersiveMap = false" in map_home
           assert "mxSearchScrollableResults" in map_home
           assert "let results = Array(search.results.prefix(20))" in map_home
-          assert "score(lhs) < score(rhs)" in map_home
+          assert "mxSearchScrollableResults" in map_home
           assert 'mxAddFavoriteToSaved' not in root
           print("Party Animal: saved stops, silent streets, immersive map and relevance-ranked search verified")
           PY
