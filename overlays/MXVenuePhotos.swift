@@ -264,6 +264,21 @@ actor MXVenuePhotoLimiter {
     }
 }
 
+
+actor MXVenuePreviewLimiter {
+    static let shared = MXVenuePreviewLimiter()
+    private var active = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func enter() async {
+        if active < 3 { active += 1 }
+        else { await withCheckedContinuation { waiters.append($0) } }
+    }
+    func leave() {
+        if waiters.isEmpty { active = max(0, active - 1) }
+        else { waiters.removeFirst().resume() }
+    }
+}
+
 @MainActor
 final class MXVenuePhotoLibrary: ObservableObject {
     static let shared = MXVenuePhotoLibrary()
@@ -272,6 +287,42 @@ final class MXVenuePhotoLibrary: ObservableObject {
     private var inFlight: Set<String> = []
     private var priorityRequests: Set<String> = []
     private var lastAttempted: [String: Date] = [:]
+    @Published private(set) var mapPreviews: [String: UIImage] = [:]
+    private var previewInFlight: Set<String> = []
+
+    func mapPreview(_ item: MKMapItem) -> UIImage? {
+        mapPreviews[MXVenuePhotoSource.key(item)]
+    }
+
+    // Real imagery of the exact geographic point, explicitly labelled as a
+    // satellite preview. This is not misrepresented as a venue photograph.
+    func loadMapPreview(_ item: MKMapItem, priority: Bool = false) {
+        let key = MXVenuePhotoSource.key(item)
+        guard mapPreviews[key] == nil, !previewInFlight.contains(key) else { return }
+        previewInFlight.insert(key)
+        Task { @MainActor in
+            if !priority { await MXVenuePreviewLimiter.shared.enter() }
+            let point = item.placemark.coordinate
+            let opts = MKMapSnapshotter.Options()
+            opts.size = CGSize(width: 620, height: 390)
+            opts.region = MKCoordinateRegion(center: point, latitudinalMeters: 260,
+                                             longitudinalMeters: 260)
+            opts.mapType = .satellite
+            opts.traitCollection = UITraitCollection(userInterfaceStyle: .light)
+            let snapshotter = MKMapSnapshotter(options: opts)
+            if let snapshot = try? await snapshotter.start() {
+                mapPreviews[key] = snapshot.image
+            } else {
+                opts.mapType = .standard
+                if let map = try? await MKMapSnapshotter(options: opts).start() {
+                    mapPreviews[key] = map.image
+                }
+            }
+            if !priority { await MXVenuePreviewLimiter.shared.leave() }
+            previewInFlight.remove(key)
+        }
+    }
+
 
     // A missing or slow photo source must never block the view indefinitely.
     // The seven-second UI deadline affects the spinner only: source fetching
@@ -297,6 +348,7 @@ final class MXVenuePhotoLibrary: ObservableObject {
 
     func load(_ item: MKMapItem, priority: Bool = false) {
         let key = MXVenuePhotoSource.key(item)
+        loadMapPreview(item, priority: priority)
         if inFlight.contains(key) {
             // The user opened Place Details while the same card was queued
             // behind many other results. Its own request gets priority.
@@ -365,14 +417,22 @@ struct MXVenueRealThumbnail: View {
                     .resizable()
                     .scaledToFill()
                     .accessibilityLabel(photo.label)
+            } else if let preview = library.mapPreview(item) {
+                Image(uiImage: preview)
+                    .resizable()
+                    .scaledToFill()
+                    .overlay(alignment: .bottomLeading) {
+                        Text("SATELLITE · LOCATION")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(5)
+                            .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                            .padding(5)
+                    }
             } else if library.didCheck(item) {
-                VStack(spacing: 5) {
-                    Image(systemName: "photo.badge.exclamationmark")
-                        .font(.system(size: 24, weight: .light))
-                    Text("No photo")
-                        .font(.system(size: 10, weight: .semibold))
-                }
-                .foregroundStyle(.white.opacity(0.65))
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
             } else {
                 ProgressView().tint(.white.opacity(0.8))
             }
