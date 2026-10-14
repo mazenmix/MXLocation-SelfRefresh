@@ -129,7 +129,7 @@ jobs:
           assert 'mxSearchScrollableResults' in map_home, "Scrollable results missing"
           assert 'LazyVStack(spacing: 0)' in map_home, "Search results are not lazy"
           assert 'mxSearchKeyboardDone' in map_home, "Keyboard dismissal action missing"
-          assert 'if !searchFocused {' in map_home, "Map controls not hidden during search"
+          assert 'if !searchFocused && !premiumNavigation.isImmersiveMap {' in map_home, "Map controls should hide during search and immersive mode"
           assert 'premiumNavigation.isSearchActive = focused' in map_home
           assert 'navigation.isSearchActive ? 0 : 1' in dating, "Overlapping category chips not hidden"
           assert '@Published var isSearchActive' in premium, "Shared search state missing"
