@@ -25,7 +25,7 @@ final class MXPremiumNavigation: ObservableObject {
 }
 
 enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
-    case dateSpots, adultVenues, afterDark, romanticStays, socialRadar, selfCare, nightlife, cafes, activities, jazz
+    case dateSpots, adultVenues, afterDark, romanticStays, socialRadar, selfCare, spaWellness, nightclubs, nightlife, convenienceStores, rooftopBars, karaoke, speakeasy, lateNightFood, pharmacies, billiards, cafes, activities, jazz
 
     var id: String { rawValue }
     var title: String {
@@ -35,7 +35,16 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .afterDark: "After Dark"
         case .romanticStays: "Romantic Stays"
         case .socialRadar: "Social Radar"
-        case .selfCare: "Self Care"
+        case .selfCare: "Grooming & Beauty"
+        case .spaWellness: "SPA & Wellness"
+        case .nightclubs: "Nightclubs"
+        case .convenienceStores: "Convenience Stores"
+        case .rooftopBars: "Rooftop Bars"
+        case .karaoke: "KTV & Karaoke"
+        case .speakeasy: "Speakeasy Bars"
+        case .lateNightFood: "Late-Night Food"
+        case .pharmacies: "24/7 Pharmacies"
+        case .billiards: "Billiards & Games"
         case .nightlife: "Nightlife"
         case .cafes: "Cafés"
         case .activities: "Activities"
@@ -57,7 +66,16 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .afterDark: "sparkles"
         case .romanticStays: "bed.double.fill"
         case .socialRadar: "person.2.fill"
-        case .selfCare: "sparkles.rectangle.stack.fill"
+        case .selfCare: "scissors"
+        case .spaWellness: "water.waves"
+        case .nightclubs: "music.note.list"
+        case .convenienceStores: "basket.fill"
+        case .rooftopBars: "building.2.fill"
+        case .karaoke: "mic.fill"
+        case .speakeasy: "wineglass.fill"
+        case .lateNightFood: "fork.knife"
+        case .pharmacies: "cross.case.fill"
+        case .billiards: "circle.grid.2x2.fill"
         case .nightlife: "wineglass.fill"
         case .cafes: "cup.and.saucer.fill"
         case .activities: "figure.walk"
@@ -72,6 +90,15 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .romanticStays: Color(red: 0.90, green: 0.49, blue: 0.70)
         case .socialRadar: Color(red: 0.25, green: 0.70, blue: 1)
         case .selfCare: Color(red: 0.40, green: 0.84, blue: 0.82)
+        case .spaWellness: Color(red: 0.08, green: 0.59, blue: 1.0)
+        case .nightclubs: Color(red: 0.68, green: 0.35, blue: 0.95)
+        case .convenienceStores: Color(red: 0.25, green: 0.70, blue: 0.47)
+        case .rooftopBars: Color(red: 0.70, green: 0.49, blue: 1.0)
+        case .karaoke: Color(red: 0.96, green: 0.46, blue: 0.73)
+        case .speakeasy: Color(red: 0.84, green: 0.52, blue: 0.29)
+        case .lateNightFood: Color(red: 1.0, green: 0.55, blue: 0.28)
+        case .pharmacies: Color(red: 0.20, green: 0.81, blue: 0.54)
+        case .billiards: Color(red: 0.28, green: 0.73, blue: 0.69)
         case .nightlife: Color(red: 0.98, green: 0.31, blue: 0.84)
         case .cafes: Color(red: 1.0, green: 0.60, blue: 0.25)
         case .activities: Color(red: 0.23, green: 0.88, blue: 0.62)
@@ -85,7 +112,16 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .afterDark: "Late-night discoveries, cabaret & hidden bars"
         case .romanticStays: "Boutique and adult-only hotels"
         case .socialRadar: "Public social gathering places"
-        case .selfCare: "Massage, spas, barbers, nails & relaxation"
+        case .selfCare: "Grooming, hair, nails and beauty"
+        case .spaWellness: "Massage, wellness, saunas and relaxation"
+        case .nightclubs: "Dance clubs and DJs"
+        case .convenienceStores: "24-hour shops and mini-marts"
+        case .rooftopBars: "Sky bars and rooftop lounges"
+        case .karaoke: "KTV and private karaoke rooms"
+        case .speakeasy: "Hidden and craft cocktail bars"
+        case .lateNightFood: "Late-night dining and night markets"
+        case .pharmacies: "Pharmacies and drugstores"
+        case .billiards: "Billiards, pool and social games"
         case .nightlife: "Lounges, clubs & evening venues"
         case .cafes: "Coffee shops & casual meetups"
         case .activities: "Public activities & attractions"
@@ -95,13 +131,20 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
     var searchTerms: [String] {
         switch self {
         case .dateSpots: ["romantic restaurant", "rooftop restaurant", "date cafe", "cozy wine bar", "couples activity", "sunset view restaurant"]
-        case .adultVenues: ["adult entertainment club", "burlesque cabaret", "swingers lifestyle club",
-                             "strip club", "fetish nightclub", "adult cabaret show",
-                             "couples lifestyle lounge", "clothing optional resort"]
-        case .afterDark: ["speakeasy bar", "late night lounge", "cabaret club", "nightclub"]
+        case .adultVenues: ["strip club", "gentlemen's club", "go go bar", "adult dance club"]
+        case .afterDark: ["late night lounge", "24 hour cafe", "late night restaurant"]
         case .romanticStays: ["boutique hotel", "romantic hotel", "adults only resort"]
         case .socialRadar: ["social club", "community events venue", "social dance studio", "speed dating event venue", "language exchange cafe", "board game cafe"]
-        case .selfCare: ["day spa", "massage therapy", "wellness center", "barbershop", "hair salon", "nail salon", "foot spa", "facial spa"]
+        case .selfCare: ["barbershop", "hair salon", "nail salon", "beauty salon", "brow studio"]
+        case .spaWellness: ["day spa", "wellness center", "massage therapy", "Thai massage", "deep tissue massage", "foot reflexology", "head spa", "aromatherapy spa", "facial spa", "sauna steam bath", "hammam spa", "couples spa"]
+        case .nightclubs: ["nightclub", "dance club", "DJ nightclub", "disco club"]
+        case .convenienceStores: ["convenience store", "7-Eleven", "Uncle John's convenience store", "24 hour mini mart"]
+        case .rooftopBars: ["rooftop bar", "sky lounge", "rooftop cocktail lounge"]
+        case .karaoke: ["KTV karaoke lounge", "private karaoke room", "karaoke bar"]
+        case .speakeasy: ["speakeasy bar", "hidden cocktail bar", "craft cocktail lounge"]
+        case .lateNightFood: ["late night restaurant", "24 hour restaurant", "late night food", "night food market"]
+        case .pharmacies: ["24 hour pharmacy", "drugstore", "pharmacy"]
+        case .billiards: ["billiards hall", "pool hall", "board game cafe"]
         case .nightlife: ["nightlife", "cocktail lounge", "nightclub"]
         case .cafes: ["coffee shop", "cafe", "coffee bar"]
         case .activities: ["museum", "activity center", "attraction"]
@@ -118,7 +161,53 @@ final class MXPremiumPlacesModel: ObservableObject {
     @Published var areaName = "Selected destination"
 
     private var activeRequest = UUID()
-    func search(around center: CLLocationCoordinate2D, category: MXPremiumCategory, radiusKm: Double, customTerm: String? = nil) async {
+
+    private func isRelevant(_ item: MKMapItem, for category: MXPremiumCategory) -> Bool {
+        let title = " " + (item.name ?? "").lowercased().replacingOccurrences(of: "-", with: " ") + " "
+        let poi = item.pointOfInterestCategory?.rawValue.lowercased() ?? ""
+        let wellness = [" spa ", "massage", "wellness", "reflexology", "pamper", "sauna", "salon", "nail", "skin care", "therapy"]
+        let adult = ["strip", "pole danc", "go go", "gogo", "gentlemen", "adult entertainment", "exotic dancer"]
+        let unrelated = ["gun club", "shooting", "firearm", "rifle", "detective", "private investigator",
+                         "police", "hospital", "school", "dental", "clinic", "bank", "security",
+                         "allied services", "guard agency", "training academy"]
+        if category == .adultVenues {
+            return !wellness.contains(where: { title.contains($0) || poi.contains($0.trimmingCharacters(in: .whitespaces)) }) &&
+                   !unrelated.contains(where: { title.contains($0) }) &&
+                   !["escort", "bridal shower", "adult store", "adult cinema"].contains(where: { title.contains($0) }) &&
+                   adult.contains(where: { title.contains($0) })
+        }
+        if category == .spaWellness {
+            return !adult.contains(where: { title.contains($0) }) &&
+                   !["escort", "nightclub"].contains(where: { title.contains($0) })
+        }
+        if category == .nightclubs || category == .nightlife ||
+           category == .rooftopBars || category == .speakeasy {
+            return !wellness.contains(where: { title.contains($0) }) &&
+                   !["escort", "strip"].contains(where: { title.contains($0) })
+        }
+        return true
+    }
+
+    private func normalizedResults(_ items: [MKMapItem], origin: CLLocation,
+                                   category: MXPremiumCategory, radiusKm: Double) -> [MKMapItem] {
+        var seen = Set<String>()
+        return items.filter { item in
+            let c = item.placemark.coordinate
+            guard CLLocationCoordinate2DIsValid(c) else { return false }
+            let distance = origin.distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude))
+            let name = (item.name ?? "").folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            let key = name + String(format: ":%.4f:%.4f", c.latitude, c.longitude)
+            return distance <= radiusKm * 1000 && isRelevant(item, for: category) && seen.insert(key).inserted
+        }.sorted {
+            let l = $0.placemark.coordinate
+            let r = $1.placemark.coordinate
+            return origin.distance(from: CLLocation(latitude: l.latitude, longitude: l.longitude)) <
+                   origin.distance(from: CLLocation(latitude: r.latitude, longitude: r.longitude))
+        }
+    }
+
+    func search(around center: CLLocationCoordinate2D, category: MXPremiumCategory,
+                radiusKm: Double, customTerm: String? = nil) async {
         guard CLLocationCoordinate2DIsValid(center) else { return }
         let marker = UUID()
         activeRequest = marker
@@ -126,7 +215,6 @@ final class MXPremiumPlacesModel: ObservableObject {
         places = []
         error = nil
         areaName = String(format: "%.4f, %.4f", center.latitude, center.longitude)
-
         async let namedArea: Void = resolveName(center, token: marker)
         let origin = CLLocation(latitude: center.latitude, longitude: center.longitude)
         var gathered: [MKMapItem] = []
@@ -142,29 +230,12 @@ final class MXPremiumPlacesModel: ObservableObject {
             request.resultTypes = .pointOfInterest
             if let response = try? await MKLocalSearch(request: request).start() {
                 gathered.append(contentsOf: response.mapItems)
+                guard activeRequest == marker else { return }
+                places = normalizedResults(gathered, origin: origin, category: category, radiusKm: radiusKm)
             }
         }
         guard activeRequest == marker else { return }
-        var seen = Set<String>()
-        places = gathered.filter { place in
-            let coordinate = place.placemark.coordinate
-            let distance = origin.distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-            let key = (place.name ?? "") + String(format: ":%.4f:%.4f", coordinate.latitude, coordinate.longitude)
-            let title = (place.name ?? "").lowercased()
-            let blocked = ["gun club", "shooting", "firearm", "rifle", "detective",
-                           "private investigator", "police", "hospital", "school",
-                           "dental", "clinic", "weapons", "bank", "security", "allied services",
-                            "guard agency", "training academy", "security agency", "investigation"]
-            let unrelated = category == .adultVenues &&
-                blocked.contains(where: { title.contains($0) })
-            return distance <= radiusKm * 1000 && !unrelated && seen.insert(key).inserted
-        }.sorted {
-            origin.distance(from: CLLocation(latitude: $0.placemark.coordinate.latitude, longitude: $0.placemark.coordinate.longitude)) <
-            origin.distance(from: CLLocation(latitude: $1.placemark.coordinate.latitude, longitude: $1.placemark.coordinate.longitude))
-        }
-        if places.isEmpty {
-            error = "No matching venues found here. Try a larger radius or another category."
-        }
+        if places.isEmpty { error = "No matching venues found here. Try a larger radius." }
         loading = false
         _ = await namedArea
     }
@@ -532,15 +603,20 @@ struct MXPremiumCategoryScreen: View {
     private var filters: [String] {
         switch category {
         case .dateSpots: return ["All", "Restaurants", "Rooftops", "Lounges", "Wine Bars", "Private Dining"]
-        case .adultVenues: return ["All", "Adult Clubs", "Swingers Clubs", "Strip Clubs",
-                                   "Kink Events", "Fetish Clubs", "Couples Lounges",
-                                   "Burlesque", "Cabaret", "Erotic Shows",
-                                   "Adult Stores", "Adult Cinemas", "Nudist Beaches",
-                                   "18+ Resorts", "Sensual Spas", "After-hours"]
-        case .afterDark: return ["All", "Speakeasies", "Rooftops", "Nightclubs", "24H Cafes", "Live Music"]
+        case .adultVenues: return ["All", "Strip Clubs"]
+        case .afterDark: return ["All", "Late-Night Food", "24H Cafes", "Lounges"]
         case .romanticStays: return ["All", "Boutique Hotels", "18+ Hotels", "Luxury Hotels", "Resorts"]
         case .socialRadar: return ["All", "Cafés", "Groups", "Activities", "Social Dance", "Language Exchanges", "Board Games"]
-        case .selfCare: return ["All", "Massage", "Spas", "Foot Spa", "Nails", "Hair", "Barbers", "Facials", "Wellness"]
+        case .selfCare: return ["All", "Nails", "Hair", "Barbers", "Brows"]
+        case .spaWellness: return ["All", "Day Spa", "Massage", "Thai Massage", "Deep Tissue", "Foot Massage", "Head Spa", "Aromatherapy", "Facials", "Sauna", "Hammam", "Couples Spa"]
+        case .nightclubs: return ["All", "Dance Clubs", "DJ Clubs", "Discos"]
+        case .convenienceStores: return ["All", "7-Eleven", "Uncle John's", "Mini Marts", "24H Stores"]
+        case .rooftopBars: return ["All", "Sky Bars", "Rooftop Lounges"]
+        case .karaoke: return ["All", "KTV", "Private Karaoke"]
+        case .speakeasy: return ["All", "Hidden Bars", "Cocktail Bars"]
+        case .lateNightFood: return ["All", "24H Restaurants", "Street Food", "Night Markets"]
+        case .pharmacies: return ["All", "24H Pharmacy", "Drugstores"]
+        case .billiards: return ["All", "Pool Halls", "Board Games"]
         case .nightlife: return ["All", "Bars", "Clubs", "Lounges", "Live Music"]
         case .cafes: return ["All", "Coffee", "Dessert", "Quiet"]
         case .activities: return ["All", "Museums", "Outdoors", "Games"]
@@ -555,21 +631,38 @@ struct MXPremiumCategoryScreen: View {
         case "Lounges", "Lounge": return "lounge"
         case "Wine Bars": return "wine bar"
         case "Private Dining": return "private dining restaurant"
-        case "Adult Clubs": return "adult entertainment club"
-        case "Swingers Clubs": return "swingers lifestyle club"
-        case "Kink Events": return "kink friendly event venue"
-        case "Fetish Clubs": return "fetish club"
-        case "Couples Lounges": return "adult couples lifestyle lounge"
-        case "Erotic Shows": return "adult burlesque show venue"
-        case "After-hours": return "late night adult cabaret lounge"
         case "Strip Clubs": return "strip club"
-        case "Burlesque": return "burlesque show venue"
-        case "Cabaret": return "cabaret club"
-        case "Adult Stores": return "adult novelty store"
-        case "Adult Cinemas": return "adult movie theater"
-        case "Nudist Beaches": return "clothing optional beach"
-        case "18+ Resorts", "18+ Hotels": return "adults only hotel"
-        case "Sensual Spas": return "adult spa wellness"
+        case "Brows": return "eyebrow studio"
+        case "Day Spa": return "day spa"
+        case "Thai Massage": return "Thai massage"
+        case "Deep Tissue": return "deep tissue massage"
+        case "Foot Massage": return "foot reflexology"
+        case "Head Spa": return "head spa"
+        case "Aromatherapy": return "aromatherapy spa"
+        case "Sauna": return "sauna steam bath"
+        case "Hammam": return "hammam spa"
+        case "Couples Spa": return "couples spa"
+        case "Dance Clubs": return "dance nightclub"
+        case "DJ Clubs": return "DJ nightclub"
+        case "Discos": return "disco club"
+        case "7-Eleven": return "7-Eleven"
+        case "Uncle John's": return "Uncle John's convenience store"
+        case "Mini Marts": return "mini mart"
+        case "24H Stores": return "24 hour convenience store"
+        case "Sky Bars": return "sky bar"
+        case "Rooftop Lounges": return "rooftop lounge"
+        case "KTV": return "KTV lounge"
+        case "Private Karaoke": return "private karaoke room"
+        case "Hidden Bars": return "speakeasy bar"
+        case "Cocktail Bars": return "craft cocktail bar"
+        case "Late-Night Food": return "late night food"
+        case "24H Restaurants": return "24 hour restaurant"
+        case "Street Food": return "late night street food"
+        case "Night Markets": return "night food market"
+        case "24H Pharmacy": return "24 hour pharmacy"
+        case "Drugstores": return "drugstore"
+        case "Pool Halls": return "pool hall"
+        case "Board Games": return "board game cafe"
         case "Speakeasies": return "speakeasy bar"
         case "Nightclubs", "Clubs": return "nightclub"
         case "24H Cafes": return "24 hour cafe"
@@ -587,13 +680,10 @@ struct MXPremiumCategoryScreen: View {
         case "Language Exchanges": return "language exchange cafe"
         case "Board Games": return "board game cafe"
         case "Massage": return "massage therapy"
-        case "Spas": return "day spa"
-        case "Foot Spa": return "foot spa"
         case "Nails": return "nail salon"
         case "Hair": return "hair salon"
         case "Barbers": return "barber shop"
         case "Facials": return "facial spa"
-        case "Wellness": return "wellness center"
         case "Museums": return "museum"
         case "Outdoors": return "public park"
         case "Games": return "bowling arcade"
