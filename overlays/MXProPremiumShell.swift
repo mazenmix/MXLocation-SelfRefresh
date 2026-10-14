@@ -464,7 +464,7 @@ struct MXPremiumExploreScreen: View {
     @State private var selectedVenue: MKMapItem?
 
     private var center: CLLocationCoordinate2D? {
-        searchAreaCenter ?? session.pin ?? session.simulated ?? session.realCoordinate
+        session.pin ?? session.simulated ?? session.realCoordinate
     }
     private var searchKey: String {
         guard let c = center else { return "none" }
@@ -624,7 +624,7 @@ struct MXPremiumCategoryScreen: View {
     @State private var mapPosition: MapCameraPosition = .automatic
 
     private var center: CLLocationCoordinate2D? {
-        session.pin ?? session.simulated ?? session.realCoordinate
+        searchAreaCenter ?? session.pin ?? session.simulated ?? session.realCoordinate
     }
     private var filters: [String] {
         switch category {
