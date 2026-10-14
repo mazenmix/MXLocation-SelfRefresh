@@ -1,9 +1,10 @@
-name: Build MX Location Pro 4.9.9 Venue Explorer
+name: Build MX Location Pro 4.10.0 Photo Fix
 
 on:
   push:
     branches:
       - codex/mx-venue-explorer-v499
+      - codex/mx-pro-v4100-photo-smooth
   workflow_dispatch:
 
 permissions:
@@ -216,7 +217,7 @@ jobs:
           assert 'metadataImages(' in photo and 'imagesFromWebsite(' in photo
           assert 'normalized(found) == normalized(name)' in profile
           gallery=profile[profile.index('struct MXVenuePhotoGallery: View {'):profile.index('struct MXVenueContactDetails: View {')]
-          assert 'mapPreview' not in gallery and 'streetView' not in gallery, 'Map or street preview leaked into photo gallery'
+          assert 'Satellite view' in gallery and 'library.mapPreview(item)' in gallery, 'Location-specific fallback missing'
           assert 'MXVenueRealThumbnail(item: item)' in shell, 'Nearby rows still not using actual photos'
           assert 'https://tiles.openfreemap.org/styles/liberty' in (p/'MXOpenStreetMapProvider.swift').read_text()
           print('Photo-only previews, official website source lookup and dark Apple maps checked.')
@@ -248,8 +249,28 @@ jobs:
           assert "mxGooglePlacesPhotosKey" in settings, "Photo API key configuration missing"
           assert "load(item, priority: true)" in gallery, "Gallery not prioritized"
           assert "MXVenuePhotoSource.osmPictures" in photos and "MXVenuePhotoSource.websitePictures" in photos
-          assert "mapPreview" not in gallery[gallery.index("struct MXVenuePhotoGallery"):gallery.index("struct MXVenueContactDetails")]
+          assert "Satellite view" in gallery[gallery.index("struct MXVenuePhotoGallery"):gallery.index("struct MXVenueContactDetails")]
           print("Photo loading deadline, background results, immediate publishing and priority venue fetch OK")
+          PY
+
+
+      - name: Verify gallery fallback and movement without relayout
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('Locus-src/Locus/Features/Map')
+          photos = (root/'MXVenuePhotos.swift').read_text()
+          gallery = (root/'MXVenueEnrichment.swift').read_text()
+          sheet = (root/'MXProPremiumShell.swift').read_text()
+          assert 'MKMapSnapshotter.Options()' in photos
+          assert 'opts.mapType = .satellite' in photos
+          assert 'loadMapPreview(item, priority: priority)' in photos
+          assert 'library.mapPreview(item)' in gallery and 'Satellite view' in gallery
+          assert 'library.mapPreview(item)' in photos
+          assert '.frame(height: snapHeight(.expanded, available: availableHeight)' in sheet
+          assert '.offset(y: snapHeight(.expanded, available: availableHeight) - draggedHeight(availableHeight))' in sheet
+          print('Fallback imagery and fixed-layout moving results sheet verified')
           PY
 
       - name: Verify Party Animal, silent roads, immersive map and detailed search
@@ -341,17 +362,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 99' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.9-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.10.0-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.9.9-unsigned.ipa > MX-Location-Pro-v4.9.9-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.10.0-unsigned.ipa > MX-Location-Pro-v4.10.0-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.9.9
+          name: MX-Location-Pro-v4.10.0-PhotoFix
           path: |
-            MX-Location-Pro-v4.9.9-unsigned.ipa
-            MX-Location-Pro-v4.9.9-unsigned.ipa.sha256
+            MX-Location-Pro-v4.10.0-unsigned.ipa
+            MX-Location-Pro-v4.10.0-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
