@@ -206,28 +206,19 @@ struct MXPartyAnimalView: View {
                             .font(.caption).foregroundStyle(MXPremiumStyle.muted)
                     }
                     if !planner.stops.isEmpty {
-                        Map(position: $camera) {
-                            if let start {
-                                Annotation("Start", coordinate: start) {
-                                    Image(systemName: "location.circle.fill").font(.title2)
-                                        .foregroundStyle(MXPremiumStyle.cyan)
-                                }
-                            }
-                            ForEach(Array(planner.stops.enumerated()), id: \.element.id) { index, stop in
-                                Annotation(stop.name, coordinate: stop.coordinate) {
-                                    Text("\(index + 1)").font(.caption.bold()).foregroundStyle(.white)
-                                        .frame(width: 31, height: 31)
-                                        .background(Color.purple, in: Circle())
-                                }
-                            }
-                            ForEach(Array(planner.routes.enumerated()), id: \.offset) { _, route in
-                                MapPolyline(route.polyline)
-                                    .stroke(MXPremiumStyle.cyan, lineWidth: 5)
-                            }
-                        }
-                        .mapStyle(.standard(elevation: .realistic))
-                        .frame(height: 290)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        MXExpandableRouteMap(
+                            camera: $camera,
+                            points: (start.map {
+                                [MXRouteMapPoint(id: "party-start", title: "Start",
+                                                 coordinate: $0, color: .green)]
+                            } ?? []) + planner.stops.enumerated().map { index, stop in
+                                MXRouteMapPoint(id: stop.id.uuidString, title: stop.name,
+                                                coordinate: stop.coordinate, index: index + 1)
+                            },
+                            routes: planner.routes,
+                            compactHeight: 290,
+                            title: "Party Animal"
+                        )
                         .accessibilityIdentifier("mxPartyRoadMap")
 
                         HStack {
@@ -335,18 +326,20 @@ struct MXVisualNavigatorView: View {
                         Text("Drive").tag(false)
                         Text("Walk").tag(true)
                     }.pickerStyle(.segmented)
-                    Map(position: $camera) {
-                        if let start {
-                            Marker("Start", coordinate: start).tint(.green)
-                        }
-                        Marker("Destination", coordinate: destination.placemark.coordinate).tint(.purple)
-                        if let route {
-                            MapPolyline(route.polyline).stroke(MXPremiumStyle.cyan, lineWidth: 6)
-                        }
-                    }
-                    .mapStyle(.standard)
-                    .frame(height: 315)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    MXExpandableRouteMap(
+                        camera: $camera,
+                        points: (start.map {
+                            [MXRouteMapPoint(id: "route-start", title: "Start",
+                                             coordinate: $0, color: .green)]
+                        } ?? []) + [
+                            MXRouteMapPoint(id: "route-end", title: destination.name ?? "Destination",
+                                            coordinate: destination.placemark.coordinate,
+                                            color: .purple)
+                        ],
+                        routes: route.map { [$0] } ?? [],
+                        compactHeight: 315,
+                        title: "MX Navigator"
+                    )
                     if loading { ProgressView("Calculating street directions…").tint(MXPremiumStyle.cyan) }
                     if let issue { Text(issue).font(.subheadline).foregroundStyle(MXPremiumStyle.muted) }
                     if routes.count > 1 {
