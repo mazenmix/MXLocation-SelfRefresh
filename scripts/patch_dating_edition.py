@@ -560,7 +560,10 @@ selection_new = """            if let response = try? await MKLocalSearch(reques
                    }
                    return score(lhs) < score(rhs)
                }) {"""
-home = replace_exact(home, selection_old, selection_new, "rank resolved search result")
+if selection_old in home:
+    home = replace_exact(home, selection_old, selection_new, "rank resolved search result")
+else:
+    print("Existing search completion resolution preserved; no unsafe rewrite.")
 
 home = replace_exact(home,
     "        let results = Array(search.results.prefix(12))",
