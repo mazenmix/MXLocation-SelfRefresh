@@ -601,3 +601,34 @@ home = replace_exact(home, camera_anchor, camera_replacement, "Apple camera snap
 
 map_file.write_text(home, encoding="utf-8")
 print("MX Party Animal, silent routes, fullscreen swipe/tap and relevance-ranked place search installed.")
+
+
+# Saved Worlds: the editable Saved-location detail map also gets a
+# full-screen/restore control, without adding nested buttons in list rows.
+world_file = target / "MXWorlds.swift"
+world_text = world_file.read_text(encoding="utf-8")
+world_start = world_text.index("struct MXWorldEditView: View {")
+world_section = world_text[world_start:]
+world_section = replace_exact(
+    world_section,
+    "    @State private var note: String",
+    "    @State private var note: String\n    @State private var savedMapCamera: MapCameraPosition = .automatic",
+    "Saved editor camera binding"
+)
+world_section = replace_exact(
+    world_section,
+    """                    MXWorldMiniMap(place: place, radiusMeters: 8500)
+                        .frame(height: 175)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))""",
+    """                    MXExpandableRouteMap(
+                        camera: $savedMapCamera,
+                        points: [MXRouteMapPoint(id: "saved-world", title: place.name,
+                                                 coordinate: place.coordinate)],
+                        routes: [],
+                        compactHeight: 175,
+                        title: "Saved World"
+                    )""",
+    "Saved editor fullscreen map"
+)
+world_file.write_text(world_text[:world_start] + world_section, encoding="utf-8")
+print("Saved World detail map now supports fullscreen and restore.")
