@@ -1,4 +1,4 @@
-name: Build MX Location Pro Real Venue Photos 4.9.6
+name: Build MX Location Pro Real Venue Photos 4.9.7
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.6"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "96"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.7"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "97"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -277,29 +277,34 @@ jobs:
           print("Party Animal: saved stops, silent streets, immersive map and relevance-ranked search verified")
           PY
 
-      - name: Verify true full-bleed fullscreen without iOS TabView overlay
+      - name: Verify seamless in-place fullscreen and expandable route maps
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           root=Path("Locus-src/Locus/Features/Map")
-          fullscreen=(root/"MXImmersiveFullMap.swift").read_text()
+          script=Path("scripts/patch_dating_edition.py").read_text()
           premium=(root/"MXProPremiumShell.swift").read_text()
           home=(root/"MapHomeView.swift").read_text()
           provider=(root/"MXOpenStreetMapProvider.swift").read_text()
-          assert '.fullScreenCover(isPresented: $navigation.isImmersiveMap)' in premium, "Tab bar still overlays map"
-          assert 'MXImmersiveFullMapView()' in premium, "Dedicated full-screen map missing"
-          assert '.ignoresSafeArea(.container, edges: .all)' in fullscreen
-          assert '.statusBarHidden(true)' in fullscreen
-          assert '.persistentSystemOverlays(.hidden)' in fullscreen
-          assert 'UITapGestureRecognizer' in fullscreen and 'onSingleTap()' in fullscreen
-          assert 'tap.cancelsTouchesInView = false' in fullscreen, "Map gesture interaction disabled"
-          assert 'navigation.isImmersiveMap = false' in fullscreen
-          assert 'mxFullMapLastZoom' in provider and 'mxFullMapLastLatitude' in provider
-          assert '.onMapCameraChange(frequency: .onEnd)' in home
+          tab=(root/"MXNativeTabBarControl.swift").read_text()
+          party=(root/"MXPartyAnimal.swift").read_text()
+          maps=(root/"MXExpandableRouteMap.swift").read_text()
+          assert 'MXImmersiveFullMapView()' not in premium, "Separate map remount causes flash"
+          assert '.fullScreenCover(isPresented: $navigation.isImmersiveMap)' not in premium, "Fullscreen cover allocates duplicate map"
+          assert 'MXNativeTabBarControl(hideTabBar: navigation.isImmersiveMap)' in premium, "Native bottom tab visibility missing"
+          assert 'tabBar' in tab and 'bar.alpha = applyHidden ? 0 : 1' in tab
+          assert '.statusBarHidden(navigation.isImmersiveMap)' in premium
           assert 'mxSwipeSearchToFullscreen' in home
+          assert 'premiumNavigation.isImmersiveMap = false' in home
+          assert 'UITapGestureRecognizer' in provider, "MapLibre map tap should restore view"
+          assert 'tap.cancelsTouchesInView = false' in provider
+          assert 'MXExpandableRouteMap(' in party and party.count('MXExpandableRouteMap(') >= 2
+          assert 'mxMapExpandButton' in maps and 'mxMapMinimizeButton' in maps
+          assert 'MapPolyline(route.polyline)' in maps and 'camera: $camera' in party
+          assert 'MXPartyAnimalView' in party and 'MXVisualNavigatorView' in party
           assert 'mxAddFavoriteToSaved' not in (root/"RootView.swift").read_text()
-          print("Exclusive fullscreen cover, native MapLibre tap, preserved gestures/camera and Favorites verified.")
+          print("One original map remains mounted; tab bar hidden without relayout; all route panels expandable.")
           PY
 
       - name: Build for iPhone without code signing
@@ -329,17 +334,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.6-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.7-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.9.6-unsigned.ipa > MX-Location-Pro-v4.9.6-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.9.7-unsigned.ipa > MX-Location-Pro-v4.9.7-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.9.6
+          name: MX-Location-Pro-Dating-v4.9.7
           path: |
-            MX-Location-Pro-v4.9.6-unsigned.ipa
-            MX-Location-Pro-v4.9.6-unsigned.ipa.sha256
+            MX-Location-Pro-v4.9.7-unsigned.ipa
+            MX-Location-Pro-v4.9.7-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
