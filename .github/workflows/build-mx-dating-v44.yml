@@ -1,4 +1,4 @@
-name: Build MX Location Pro Real Venue Photos 4.9.4
+name: Build MX Location Pro Real Venue Photos 4.9.5
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           p=Path("Locus-src/project.yml")
           s=p.read_text()
           assert 'MARKETING_VERSION: "4.0.0"' in s
-          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.4"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "94"'))
+          p.write_text(s.replace('MARKETING_VERSION: "4.0.0"', 'MARKETING_VERSION: "4.9.5"').replace('CURRENT_PROJECT_VERSION: "40"', 'CURRENT_PROJECT_VERSION: "95"'))
           PY
 
       - name: Validate fullscreen Adults 18+ and smooth results
@@ -249,6 +249,34 @@ jobs:
           print("Photo loading deadline, background results, immediate publishing and priority venue fetch OK")
           PY
 
+      - name: Verify Party Animal, silent roads, immersive map and detailed search
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("Locus-src/Locus/Features/Map")
+          party=(p/"MXPartyAnimal.swift").read_text()
+          root=(p/"RootView.swift").read_text()
+          map_home=(p/"MapHomeView.swift").read_text()
+          shell=(p/"MXProPremiumShell.swift").read_text()
+          dating=(p/"MXDatingEdition.swift").read_text()
+          assert "struct MXPartyAnimalView: View" in party
+          assert "struct MXVisualNavigatorView: View" in party
+          assert "MKDirections(request:" in party and "MapPolyline(route.polyline)" in party
+          assert "session.pin =" not in party and "session.simulated =" not in party
+          assert "AVSpeechSynthesizer" not in party and "speak(" not in party
+          assert "mxPartyAnimalLaunch" in dating and "mxPartyAnimalScreen" in party
+          assert "mxSilentRouteAction" in shell and "mxSilentNavigator" in party
+          assert "isImmersiveMap" in shell and "isImmersiveMap" in dating
+          assert "mxSwipeSearchToFullscreen" in map_home
+          assert "premiumNavigation.isImmersiveMap = false" in map_home
+          assert "mxSearchScrollableResults" in map_home
+          assert "let results = Array(search.results.prefix(20))" in map_home
+          assert "score(lhs) < score(rhs)" in map_home
+          assert 'mxAddFavoriteToSaved' not in root
+          print("Party Animal: saved stops, silent streets, immersive map and relevance-ranked search verified")
+          PY
+
       - name: Build for iPhone without code signing
         shell: bash
         run: |
@@ -276,17 +304,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.4-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.5-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.9.4-unsigned.ipa > MX-Location-Pro-v4.9.4-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.9.5-unsigned.ipa > MX-Location-Pro-v4.9.5-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.9.4
+          name: MX-Location-Pro-Dating-v4.9.5
           path: |
-            MX-Location-Pro-v4.9.4-unsigned.ipa
-            MX-Location-Pro-v4.9.4-unsigned.ipa.sha256
+            MX-Location-Pro-v4.9.5-unsigned.ipa
+            MX-Location-Pro-v4.9.5-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
