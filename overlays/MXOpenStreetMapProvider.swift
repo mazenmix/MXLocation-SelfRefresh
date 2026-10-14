@@ -66,6 +66,14 @@ struct MXOpenStreetMapCanvas: UIViewRepresentable {
             CLLocationCoordinate2D(latitude: 14.5995, longitude: 120.9842)
         map.setCenter(target, zoomLevel: 14, animated: false)
         context.coordinator.refresh(map, pin: selectedPin, active: simulated)
+        // The native map (not an overlay) owns tap recognition. It must work
+        // in both normal and immersive modes without consuming pinch/pan.
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                        action: #selector(Coordinator.handleNativeTap(_:)))
+        tap.numberOfTapsRequired = 1
+        tap.cancelsTouchesInView = false
+        tap.delegate = context.coordinator
+        map.addGestureRecognizer(tap)
         return map
     }
 
@@ -74,7 +82,7 @@ struct MXOpenStreetMapCanvas: UIViewRepresentable {
         context.coordinator.refresh(map, pin: selectedPin, active: simulated)
     }
 
-    final class Coordinator: NSObject, MLNMapViewDelegate {
+    final class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
         var onTap: (CLLocationCoordinate2D) -> Void
         private var selectedAnnotation: MLNPointAnnotation?
         private var activeAnnotation: MLNPointAnnotation?
@@ -85,8 +93,18 @@ struct MXOpenStreetMapCanvas: UIViewRepresentable {
             self.onTap = onTap
         }
 
-        func mapView(_ mapView: MLNMapView, didTapAt coordinate: CLLocationCoordinate2D) {
-            onTap(coordinate)
+        // Reliable single tap: the MapLibre didTapAt delegate isn't always
+        // invoked on every style/device. Native UIKit recognizer fixes that.
+        @objc func handleNativeTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended,
+                  let map = recognizer.view as? MLNMapView else { return }
+            let location = recognizer.location(in: map)
+            onTap(map.convert(location, toCoordinateFrom: map))
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            true
         }
 
         // Retain the exact OSM camera when moving into the separate full-screen cover.
