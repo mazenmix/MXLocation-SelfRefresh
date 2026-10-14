@@ -262,7 +262,7 @@ jobs:
           dating=(p/"MXDatingEdition.swift").read_text()
           assert "struct MXPartyAnimalView: View" in party
           assert "struct MXVisualNavigatorView: View" in party
-          assert "MKDirections(request:" in party and "MapPolyline(route.polyline)" in party
+          assert "MKDirections(request:" in party and "MapPolyline(route.polyline)" in (p/"MXExpandableRouteMap.swift").read_text()
           assert "session.pin =" not in party and "session.simulated =" not in party
           assert "AVSpeechSynthesizer" not in party and "speak(" not in party
           assert "mxPartyAnimalLaunch" in dating and "mxPartyAnimalScreen" in party
