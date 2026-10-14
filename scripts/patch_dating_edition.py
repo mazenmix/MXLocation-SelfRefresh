@@ -378,18 +378,16 @@ if premium_text.count(env_nav) != 1:
     raise RuntimeError("Premium environment anchor missing")
 premium_text = premium_text.replace(env_nav, env_nav + chr(10) +
     '        .environmentObject(mapChoice)', 1)
-# Present ABOVE TabView so iOS system bottom tabs cannot remain visible.
-# The cover owns only a map; the original Explore/GPS view remains untouched.
-immersive_mount = """        .fullScreenCover(isPresented: $navigation.isImmersiveMap) {
-            MXImmersiveFullMapView()
-                .environmentObject(session)
-                .environmentObject(navigation)
-                .environmentObject(mapChoice)
-        }"""
-map_env = '        .environmentObject(mapChoice)'
-if premium_text.count(map_env) != 1:
-    raise RuntimeError("Fullscreen requires one shared mapChoice environment")
-premium_text = premium_text.replace(map_env, map_env + chr(10) + immersive_mount, 1)
+# Keep the original map alive when hiding all chrome.
+# Do NOT present a second map: it flashes and changes zoom.
+tab_env = '        .environmentObject(mapChoice)'
+if premium_text.count(tab_env) != 1:
+    raise RuntimeError("Shared map environment missing")
+premium_text = premium_text.replace(
+    tab_env, tab_env + chr(10) +
+    '        .background(MXNativeTabBarControl(hideTabBar: navigation.isImmersiveMap).frame(width: 0, height: 0))' +
+    chr(10) + '        .statusBarHidden(navigation.isImmersiveMap)', 1
+)
 premium_file.write_text(premium_text, encoding="utf-8")
 
 map_file = target / "MapHomeView.swift"
@@ -474,10 +472,10 @@ dating_file.write_text(dating_code, encoding="utf-8")
 print("MX v4.8: genuine full-screen venue discovery, rich real place cards and details, OpenStreetMap Liberty colors.")
 
 
-# MX Location Pro 4.9.6: independent edge-to-edge map cover above system tabs.
-immersive_source = repo / "overlays/MXImmersiveFullMap.swift"
-assert immersive_source.is_file(), "Dedicated full-screen map missing"
-(target / immersive_source.name).write_bytes(immersive_source.read_bytes())
+# MX Location Pro 4.9.7: never create a second map for fullscreen.
+native_tab_source = repo / "overlays/MXNativeTabBarControl.swift"
+assert native_tab_source.is_file(), "Native floating-tab visibility controller missing"
+(target / native_tab_source.name).write_bytes(native_tab_source.read_bytes())
 
 # MX Location Pro 4.9.5: independent Party Animal + silent Navigator.
 party_source = repo / "overlays/MXPartyAnimal.swift"
@@ -508,10 +506,8 @@ bar = bar[:bar_end] + """
             DragGesture(minimumDistance: 35).onEnded { value in
                 if value.translation.height < -65 &&
                     abs(value.translation.width) < 100 && !searchFocused {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
-                        premiumNavigation.isImmersiveMap = true
-                        premiumNavigation.isSearchActive = false
-                    }
+                    premiumNavigation.isImmersiveMap = true
+                    premiumNavigation.isSearchActive = false
                 }
             }
         )
@@ -536,9 +532,7 @@ home = replace_exact(home,
                     guard !suppressNextMapTap""",
     """                .onTapGesture { point in
                     if premiumNavigation.isImmersiveMap {
-                        withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) {
-                            premiumNavigation.isImmersiveMap = false
-                        }
+                        premiumNavigation.isImmersiveMap = false
                         return
                     }
                     searchFocused = false
