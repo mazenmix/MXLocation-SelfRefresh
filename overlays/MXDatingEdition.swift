@@ -14,6 +14,7 @@ struct MXDatingExploreHome: View {
     @EnvironmentObject private var navigation: MXPremiumNavigation
     @AppStorage("mxDatingAdultAccessConfirmed") private var adultConfirmed = false
     @State private var showAdultConfirmation = false
+    @State private var showPartyAnimal = false
 
     var body: some View {
         NavigationStack {
@@ -21,6 +22,16 @@ struct MXDatingExploreHome: View {
                 MapHomeView()
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
+                        Button { showPartyAnimal = true } label: {
+                            Label("Party Animal", systemImage: "sparkles")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .frame(height: 37)
+                                .background(Color.purple, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("mxPartyAnimalLaunch")
                         ForEach(MXPremiumCategory.allCases) { category in
                             Button {
                                 if category == .adultVenues && !adultConfirmed {
@@ -45,12 +56,15 @@ struct MXDatingExploreHome: View {
                 }
                 // Stays beneath the map search without covering the map itself.
                 .padding(.top, 74)
-                .opacity(navigation.isSearchActive ? 0 : 1)
-                .allowsHitTesting(!navigation.isSearchActive)
-                .accessibilityHidden(navigation.isSearchActive)
+                .opacity(navigation.isSearchActive || navigation.isImmersiveMap ? 0 : 1)
+                .allowsHitTesting(!navigation.isSearchActive && !navigation.isImmersiveMap)
+                .accessibilityHidden(navigation.isSearchActive || navigation.isImmersiveMap)
                 .animation(.easeOut(duration: 0.16), value: navigation.isSearchActive)
             }
             .toolbar(.hidden, for: .navigationBar)
+            .fullScreenCover(isPresented: $showPartyAnimal) {
+                MXPartyAnimalView()
+            }
             .navigationDestination(isPresented: $navigation.openCategory) {
                 MXPremiumCategoryScreen(category: navigation.category)
             }
