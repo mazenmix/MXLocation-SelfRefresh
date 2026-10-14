@@ -245,6 +245,24 @@ struct MXVenuePhotoGallery: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .automatic))
                     .accessibilityIdentifier("mxRealVenueSwipeGallery")
+                } else if let preview = library.mapPreview(item) {
+                    ZStack(alignment: .bottomLeading) {
+                        Image(uiImage: preview)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                        HStack(spacing: 7) {
+                            Image(systemName: "map.fill")
+                            Text("Satellite view · Exact location, not a venue photo")
+                            Spacer(minLength: 0)
+                        }
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 42)
+                        .background(.black.opacity(0.76))
+                    }
                 } else if library.didCheck(item) {
                     VStack(spacing: 10) {
                         Image(systemName: "photo.on.rectangle.angled")
@@ -281,7 +299,7 @@ struct MXVenuePhotoGallery: View {
                     }
                 }
             }
-            .frame(height: library.pictures(item).isEmpty && library.didCheck(item) ? 178 : 230)
+            .frame(height: 230)
             .clipShape(RoundedRectangle(cornerRadius: 20))
 
             if !library.pictures(item).isEmpty {
