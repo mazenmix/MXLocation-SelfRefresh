@@ -21,6 +21,7 @@ final class MXPremiumNavigation: ObservableObject {
     @Published var category: MXPremiumCategory = .dateSpots
     @Published var openCategory = false
     @Published var isSearchActive = false
+    @Published var isImmersiveMap = false
 }
 
 enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
@@ -294,6 +295,7 @@ struct MXPremiumVenueCard: View {
 
 struct MXPremiumVenueDetails: View {
     let item: MKMapItem
+    @State private var showSilentNavigator = false
     @EnvironmentObject private var session: SpoofSession
     @EnvironmentObject private var pairing: PairingStore
     @Environment(\.dismiss) private var dismiss
@@ -312,6 +314,10 @@ struct MXPremiumVenueDetails: View {
                     MXPremiumPanel {
                         VStack(alignment: .leading, spacing: 13) {
                             Text("Location actions").font(.headline)
+                            Button { showSilentNavigator = true } label: {
+                                Label("MX Navigator · Silent route", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                            }
+                            .accessibilityIdentifier("mxSilentRouteAction")
                             Button { item.openInMaps() } label: {
                                 Label("Directions in Apple Maps", systemImage: "map.fill")
                             }
@@ -342,6 +348,10 @@ struct MXPremiumVenueDetails: View {
             .background(MXPremiumStyle.background)
             .navigationTitle("Place Details")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showSilentNavigator) {
+                MXVisualNavigatorView(destination: item,
+                    start: session.pin ?? session.simulated ?? session.realCoordinate)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
