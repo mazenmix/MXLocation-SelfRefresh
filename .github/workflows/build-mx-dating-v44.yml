@@ -131,7 +131,7 @@ jobs:
           assert 'mxSearchKeyboardDone' in map_home, "Keyboard dismissal action missing"
           assert 'if !searchFocused && !premiumNavigation.isImmersiveMap {' in map_home, "Map controls should hide during search and immersive mode"
           assert 'premiumNavigation.isSearchActive = focused' in map_home
-          assert 'navigation.isSearchActive ? 0 : 1' in dating, "Overlapping category chips not hidden"
+          assert 'navigation.isSearchActive || navigation.isImmersiveMap ? 0 : 1' in dating, "Overlapping category chips not hidden"
           assert '@Published var isSearchActive' in premium, "Shared search state missing"
           assert 'mxFloatingFullscreenHeader' in premium, "Adults immersive screen missing"
           print("Keyboard-safe scroll results, pinned search field, restored map and category visibility checked")
