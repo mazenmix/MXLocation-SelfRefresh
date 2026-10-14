@@ -996,7 +996,8 @@ struct MXPremiumCategoryScreen: View {
             .gesture(dragResults(availableHeight))
             .accessibilityIdentifier("mxSmoothNearbyDragHandle")
 
-            if detent != .collapsed || draggingSheet < -24 {
+            // Always keep the list mounted; moving the entire sheet prevents relayout jitter.
+            if true {
                 if let error = model.error, model.places.isEmpty && !model.loading {
                     Text(error)
                         .font(.footnote)
@@ -1037,7 +1038,7 @@ struct MXPremiumCategoryScreen: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: draggedHeight(availableHeight), alignment: .top)
+        .frame(height: snapHeight(.expanded, available: availableHeight), alignment: .top)
         .background(
             MXPremiumStyle.panel.opacity(0.96),
             in: UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
@@ -1047,7 +1048,8 @@ struct MXPremiumCategoryScreen: View {
                 .stroke(.white.opacity(0.065), lineWidth: 0.7)
         }
         .shadow(color: .black.opacity(0.25), radius: 15, y: -3)
-        .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.86),
+        .offset(y: snapHeight(.expanded, available: availableHeight) - draggedHeight(availableHeight))
+        .animation(.interactiveSpring(response: 0.40, dampingFraction: 0.92),
                    value: detent)
         .accessibilityIdentifier("mxNearbyThreeDetentSheet")
     }
