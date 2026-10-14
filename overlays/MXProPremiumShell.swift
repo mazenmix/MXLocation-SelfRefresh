@@ -136,55 +136,131 @@ final class MXPremiumPlacesModel: ObservableObject {
     @Published var areaName = "Selected destination"
 
     private var activeRequest = UUID()
+    private var previousSearch: String?
+    @Published private(set) var progress = 0
+    @Published private(set) var totalRequests = 0
+
+    private static func allowed(_ item: MKMapItem, category: MXPremiumCategory, query: String) -> Bool {
+        let name = (item.name ?? "").lowercased()
+        let kind = (item.pointOfInterestCategory?.rawValue ?? "").lowercased()
+        let identity = name + " " + kind
+        func hit(_ terms: [String], _ source: String) -> Bool { terms.contains { source.contains($0) } }
+        let spa = hit(["spa", "wellness", "massage", "reflexology", "aromatherapy",
+                       "sauna", "hammam", "steam bath", "foot therapy", "facial"], identity)
+        let strip = hit(["strip club", "striptease", "gentlemen club", "gentlemens club",
+                         "gentlemen's club", "go-go dance", "gogo club", "exotic dance",
+                         "pole dance"], name)
+        let otherAdult = hit(["escort", "bridal shower", "private live show",
+                              "swingers", "fetish", "kink", "burlesque", "cabaret",
+                              "adult cinema", "sex shop", "nudist", "adult store"], identity)
+        let blocked = hit(["gun club", "shooting", "firearm", "rifle", "detective", "security",
+                           "allied services", "hospital", "police", "school", "dental",
+                           "clinic", "bank", "investigation"], identity)
+        let minimart = hit(["7-eleven", "7 eleven", "uncle john", "familymart",
+                            "ministop", "lawson", "mini mart", "minimart",
+                            "convenience store"], identity)
+        switch category {
+        case .adultVenues:
+            return strip && !spa && !otherAdult && !blocked
+        case .spaWellness:
+            if strip || otherAdult || minimart || blocked { return false }
+            return spa || (hit(["massage", "spa", "sauna", "aromatherapy", "reflexology"], query.lowercased())
+                           && !hit(["bar", "nightclub", "pub", "dance club", "restaurant"], identity))
+        case .nightclubs:
+            return !spa && !strip && !otherAdult && !minimart && !blocked
+                && hit(["nightclub", "night club", "dance club", "dj club", "disco", "discotheque"], identity)
+        case .convenienceStores:
+            return minimart && !spa && !strip && !blocked
+        case .lateNightFood:
+            return !spa && !strip && !blocked && (hit(["restaurant", "diner", "eatery", "food",
+                   "kitchen", "24 hour", "24-hour"], identity) || kind.contains("restaurant"))
+        case .selfCare:
+            return !spa && !strip && !otherAdult && !blocked
+                && hit(["barber", "hair", "nail", "beauty salon"], identity)
+        case .nightlife, .afterDark:
+            return !spa && !strip && !otherAdult && !minimart && !blocked
+                && hit(["bar", "pub", "lounge", "night", "club", "karaoke", "ktv",
+                        "music", "jazz", "rooftop", "speakeasy", "billiard"], identity)
+        case .jazz:
+            return !spa && !strip && !blocked && hit(["jazz", "live music", "live band", "music bar"], identity)
+        default:
+            return !blocked && !strip
+        }
+    }
+
+    private static func areas(_ point: CLLocationCoordinate2D, radius: Double) -> [CLLocationCoordinate2D] {
+        guard radius > 7 else { return [point] }
+        let lat = radius / 3 / 111.0
+        let lon = lat / max(0.2, abs(cos(point.latitude * .pi / 180)))
+        return [point,
+                .init(latitude: point.latitude + lat, longitude: point.longitude + lon),
+                .init(latitude: point.latitude + lat, longitude: point.longitude - lon),
+                .init(latitude: point.latitude - lat, longitude: point.longitude + lon),
+                .init(latitude: point.latitude - lat, longitude: point.longitude - lon)]
+    }
+
     func search(around center: CLLocationCoordinate2D, category: MXPremiumCategory, radiusKm: Double, customTerm: String? = nil) async {
         guard CLLocationCoordinate2DIsValid(center) else { return }
         let marker = UUID()
         activeRequest = marker
+        let identity = String(format: "%.5f:%.5f:%@:%.0f:%@", center.latitude, center.longitude,
+                              category.rawValue, radiusKm, customTerm ?? "All")
+        let unchanged = previousSearch == identity
+        previousSearch = identity
+        let cached = unchanged ? places : []
+        if !unchanged { places = [] }
         loading = true
-        places = []
         error = nil
+        progress = 0
         areaName = String(format: "%.4f, %.4f", center.latitude, center.longitude)
-
-        async let namedArea: Void = resolveName(center, token: marker)
+        async let resolvedName: Void = resolveName(center, token: marker)
+        let radius = max(1, min(25, radiusKm))
         let origin = CLLocation(latitude: center.latitude, longitude: center.longitude)
-        var gathered: [MKMapItem] = []
-        for term in (customTerm.map { [$0] } ?? category.searchTerms) {
-            guard activeRequest == marker else { return }
-            let request = MKLocalSearch.Request()
-            request.naturalLanguageQuery = term
-            request.region = MKCoordinateRegion(
-                center: center,
-                latitudinalMeters: max(1500, radiusKm * 2400),
-                longitudinalMeters: max(1500, radiusKm * 2400)
-            )
-            request.resultTypes = .pointOfInterest
-            if let response = try? await MKLocalSearch(request: request).start() {
-                gathered.append(contentsOf: response.mapItems)
+        let terms = customTerm.map { [$0] } ?? category.searchTerms
+        let searchAreas = Self.areas(center, radius: radius)
+        totalRequests = terms.count * searchAreas.count
+        var found: [String: MKMapItem] = [:]
+        func venueKey(_ item: MKMapItem) -> String {
+            let p = item.placemark.coordinate
+            return (item.name ?? "").lowercased() + String(format: ":%.4f:%.4f", p.latitude, p.longitude)
+        }
+        for item in cached { found[venueKey(item)] = item }
+        var failed = 0
+        for term in terms {
+            for focal in searchAreas {
+                guard activeRequest == marker && !Task.isCancelled else { return }
+                let request = MKLocalSearch.Request()
+                request.naturalLanguageQuery = term
+                request.region = MKCoordinateRegion(center: focal,
+                    latitudinalMeters: max(1500, radius * 1500),
+                    longitudinalMeters: max(1500, radius * 1500))
+                request.resultTypes = .pointOfInterest
+                do {
+                    let response = try await MKLocalSearch(request: request).start()
+                    guard activeRequest == marker && !Task.isCancelled else { return }
+                    for item in response.mapItems {
+                        let p = item.placemark.coordinate
+                        let distance = origin.distance(from: CLLocation(latitude: p.latitude, longitude: p.longitude))
+                        guard distance <= radius * 1000, Self.allowed(item, category: category, query: term) else { continue }
+                        found[venueKey(item)] = item
+                    }
+                    places = found.values.sorted {
+                        origin.distance(from: CLLocation(latitude: $0.placemark.coordinate.latitude,
+                                                         longitude: $0.placemark.coordinate.longitude)) <
+                        origin.distance(from: CLLocation(latitude: $1.placemark.coordinate.latitude,
+                                                         longitude: $1.placemark.coordinate.longitude))
+                    }
+                } catch { failed += 1 }
+                progress += 1
             }
         }
-        guard activeRequest == marker else { return }
-        var seen = Set<String>()
-        places = gathered.filter { place in
-            let coordinate = place.placemark.coordinate
-            let distance = origin.distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-            let key = (place.name ?? "") + String(format: ":%.4f:%.4f", coordinate.latitude, coordinate.longitude)
-            let title = (place.name ?? "").lowercased()
-            let blocked = ["gun club", "shooting", "firearm", "rifle", "detective",
-                           "private investigator", "police", "hospital", "school",
-                           "dental", "clinic", "weapons", "bank", "security", "allied services",
-                            "guard agency", "training academy", "security agency", "investigation"]
-            let unrelated = category == .adultVenues &&
-                blocked.contains(where: { title.contains($0) })
-            return distance <= radiusKm * 1000 && !unrelated && seen.insert(key).inserted
-        }.sorted {
-            origin.distance(from: CLLocation(latitude: $0.placemark.coordinate.latitude, longitude: $0.placemark.coordinate.longitude)) <
-            origin.distance(from: CLLocation(latitude: $1.placemark.coordinate.latitude, longitude: $1.placemark.coordinate.longitude))
-        }
+        guard activeRequest == marker && !Task.isCancelled else { return }
         if places.isEmpty {
-            error = "No matching venues found here. Try a larger radius or another category."
+            error = failed == totalRequests ? "Search unavailable. Please try again." :
+                "No verified matching venues found. Adjust radius or category."
         }
         loading = false
-        _ = await namedArea
+        _ = await resolvedName
     }
 
     private func resolveName(_ center: CLLocationCoordinate2D, token: UUID) async {
@@ -388,7 +464,7 @@ struct MXPremiumExploreScreen: View {
     @State private var selectedVenue: MKMapItem?
 
     private var center: CLLocationCoordinate2D? {
-        session.pin ?? session.simulated ?? session.realCoordinate
+        searchAreaCenter ?? session.pin ?? session.simulated ?? session.realCoordinate
     }
     private var searchKey: String {
         guard let c = center else { return "none" }
@@ -538,6 +614,9 @@ struct MXPremiumCategoryScreen: View {
     @State private var detent: NearbyDetent = .medium
     @GestureState private var draggingSheet: CGFloat = 0
     @State private var radiusVisible = false
+    @State private var searchAreaCenter: CLLocationCoordinate2D?
+    @State private var searchNonce = 0
+    @State private var cameraInitialized = false
 
     private enum NearbyDetent: CaseIterable {
         case collapsed, medium, expanded
@@ -627,7 +706,7 @@ struct MXPremiumCategoryScreen: View {
     private var key: String {
         guard let c = center else { return "no-location" }
         return String(format: "%.5f:%.5f:%@:%.0f:%@",
-                      c.latitude, c.longitude, category.rawValue, radius, subfilter)
+                      c.latitude, c.longitude, category.rawValue, radius, subfilter) + ":\(searchNonce)"
     }
 
     var body: some View {
@@ -638,6 +717,22 @@ struct MXPremiumCategoryScreen: View {
                 VStack(spacing: 8) {
                     floatingHeader
                     glassFilters
+                    if mapChoice.selected != .osm {
+                        Button {
+                            if let p = mapPosition.region?.center {
+                                searchAreaCenter = p
+                                searchNonce += 1
+                            }
+                        } label: {
+                            Label("Search This Area", systemImage: "arrow.clockwise")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16).padding(.vertical, 9)
+                                .background(category.tint.opacity(0.90), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("mxSearchThisArea")
+                    }
                     Spacer(minLength: 0)
                 }
                 .padding(.top, max(geometry.safeAreaInsets.top, 18) + 8)
@@ -661,11 +756,14 @@ struct MXPremiumCategoryScreen: View {
         }
         .task(id: key) {
             if let c = center {
-                mapPosition = .region(MKCoordinateRegion(
-                    center: c,
-                    latitudinalMeters: max(1500, radius * 2200),
-                    longitudinalMeters: max(1500, radius * 2200)
-                ))
+                if !cameraInitialized {
+                    mapPosition = .region(MKCoordinateRegion(
+                        center: c,
+                        latitudinalMeters: max(1500, radius * 2200),
+                        longitudinalMeters: max(1500, radius * 2200)
+                    ))
+                    cameraInitialized = true
+                }
                 await model.search(around: c, category: category,
                                    radiusKm: radius, customTerm: customSearch)
             }
@@ -868,7 +966,12 @@ struct MXPremiumCategoryScreen: View {
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
                     Spacer(minLength: 0)
-                    if model.loading { ProgressView().controlSize(.small) }
+                    if model.loading {
+                        ProgressView().controlSize(.small)
+                        Text("\(model.progress)/\(model.totalRequests)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(MXPremiumStyle.muted)
+                    }
                     Text("\(model.places.count) results")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(MXPremiumStyle.muted)
