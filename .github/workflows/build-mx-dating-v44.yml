@@ -1,9 +1,9 @@
-name: Build MX Location Pro Real Venue Photos 4.9.8
+name: Build MX Location Pro 4.9.9 Venue Explorer
 
 on:
   push:
     branches:
-      - codex/mx-dating-v4-4-fullscreen-adults
+      - codex/mx-venue-explorer-v499
   workflow_dispatch:
 
 permissions:
@@ -111,7 +111,9 @@ jobs:
           assert '1_900_000_000' in map_home, 'Brief toast timing missing'
           assert 'case afterDark = "Confident 18+"' in wingman
           assert 'chatContext' in wingman and 'goal.rawValue' in wingman, 'Wingman improvements missing'
-          assert '"Kink Events"' in premium and '"Fetish Clubs"' in premium
+          assert '"Kink Events"' not in premium and '"Swingers Clubs"' not in premium
+          assert '"SPA & Wellness"' in premium and '"Convenience Stores"' in premium
+          assert '"Strip Clubs"' in premium and '"Nightclubs"' in premium
           print('Top toast, Saved reordering/editing/weather, Wingman and adults categories verified.')
           PY
 
@@ -204,7 +206,8 @@ jobs:
           photo=(p/"MXVenuePhotos.swift").read_text()
           edition=(p/"MXDatingEdition.swift").read_text()
           assert 'selfCare' in shell and 'case .selfCare:' in shell, 'self-care category missing'
-          assert '"Foot Spa"' in shell and '"Massage"' in shell and '"Nails"' in shell
+          assert '"Thai Massage"' in shell and '"Day Spa"' in shell and '"Nails"' in shell
+          assert 'mxSearchThisArea' in shell and 'private static func allowed' in shell
           assert '"security"' in shell and '"allied services"' in shell, 'Adult venue false positive filter missing'
           assert 'MXVenuePhotoGallery(item: item)' in shell and 'MXVenueContactDetails(item: item)' in shell
           assert 'MXVenueRealThumbnail(item: item)' in shell and 'MXVenuePhotoGallery(item: item)' in shell
@@ -334,19 +337,21 @@ jobs:
           find "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} + || true
           find "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app" -name embedded.mobileprovision -type f -delete || true
           /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName MX Location Pro' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 4.9.9' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 99' "$RUNNER_TEMP/mx-v44/Payload/MXLocationPro.app/Info.plist"
           (
             cd "$RUNNER_TEMP/mx-v44"
-            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.8-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
+            zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-v4.9.9-unsigned.ipa" Payload -x '._*' '.DS_Store' '__MACOSX/*'
           )
-          shasum -a 256 MX-Location-Pro-v4.9.8-unsigned.ipa > MX-Location-Pro-v4.9.8-unsigned.ipa.sha256
+          shasum -a 256 MX-Location-Pro-v4.9.9-unsigned.ipa > MX-Location-Pro-v4.9.9-unsigned.ipa.sha256
 
       - name: Upload installable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-Dating-v4.9.8
+          name: MX-Location-Pro-Dating-v4.9.9
           path: |
-            MX-Location-Pro-v4.9.8-unsigned.ipa
-            MX-Location-Pro-v4.9.8-unsigned.ipa.sha256
+            MX-Location-Pro-v4.9.9-unsigned.ipa
+            MX-Location-Pro-v4.9.9-unsigned.ipa.sha256
             Locus-src/xcodebuild-mx-dating.log
           if-no-files-found: warn
