@@ -481,9 +481,12 @@ def replace_exact(haystack, old, new, label):
 start_bar = home.index("    private var searchBar: some View {")
 end_bar = home.index("    @ViewBuilder\n    private func searchResults(", start_bar)
 bar = home[start_bar:end_bar]
-bar = replace_exact(bar,
-    "        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))",
-    """        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+# Attach to the search view's final modifier chain, independent of
+# earlier theme-patch changes to its corner radius and background type.
+bar_end = bar.rfind("\n    }")
+if bar_end < 0:
+    raise RuntimeError("Cannot locate SearchBar end safely")
+bar = bar[:bar_end] + """
         .simultaneousGesture(
             DragGesture(minimumDistance: 35).onEnded { value in
                 if value.translation.height < -65 &&
@@ -495,8 +498,7 @@ bar = replace_exact(bar,
                 }
             }
         )
-        .accessibilityIdentifier("mxSwipeSearchToFullscreen")""",
-    "search swipe")
+        .accessibilityIdentifier("mxSwipeSearchToFullscreen")""" + bar[bar_end:]
 home = home[:start_bar] + bar + home[end_bar:]
 
 home = replace_exact(home,
