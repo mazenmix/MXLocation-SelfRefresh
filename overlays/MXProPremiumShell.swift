@@ -654,7 +654,7 @@ struct MXPremiumCategoryScreen: View {
         case "Private Dining": return "private dining restaurant"
         case "Strip Clubs": return "strip club"
         case "Speakeasies": return "speakeasy bar"
-        case "Nightclubs", "Clubs": return "nightclub"
+        case "Clubs": return "nightclub"
         case "24H Cafes": return "24 hour cafe"
         case "Boutique Hotels": return "boutique hotel"
         case "Luxury Hotels": return "luxury hotel"
