@@ -378,6 +378,18 @@ if premium_text.count(env_nav) != 1:
     raise RuntimeError("Premium environment anchor missing")
 premium_text = premium_text.replace(env_nav, env_nav + chr(10) +
     '        .environmentObject(mapChoice)', 1)
+# Present ABOVE TabView so iOS system bottom tabs cannot remain visible.
+# The cover owns only a map; the original Explore/GPS view remains untouched.
+immersive_mount = """        .fullScreenCover(isPresented: $navigation.isImmersiveMap) {
+            MXImmersiveFullMapView()
+                .environmentObject(session)
+                .environmentObject(navigation)
+                .environmentObject(mapChoice)
+        }"""
+map_env = '        .environmentObject(mapChoice)'
+if premium_text.count(map_env) != 1:
+    raise RuntimeError("Fullscreen requires one shared mapChoice environment")
+premium_text = premium_text.replace(map_env, map_env + chr(10) + immersive_mount, 1)
 premium_file.write_text(premium_text, encoding="utf-8")
 
 map_file = target / "MapHomeView.swift"
@@ -461,6 +473,11 @@ dating_code = dating_code.replace(original_category, fullscreen_category, 1)
 dating_file.write_text(dating_code, encoding="utf-8")
 print("MX v4.8: genuine full-screen venue discovery, rich real place cards and details, OpenStreetMap Liberty colors.")
 
+
+# MX Location Pro 4.9.6: independent edge-to-edge map cover above system tabs.
+immersive_source = repo / "overlays/MXImmersiveFullMap.swift"
+assert immersive_source.is_file(), "Dedicated full-screen map missing"
+(target / immersive_source.name).write_bytes(immersive_source.read_bytes())
 
 # MX Location Pro 4.9.5: independent Party Animal + silent Navigator.
 party_source = repo / "overlays/MXPartyAnimal.swift"
@@ -569,6 +586,19 @@ home = replace_exact(home,
     "        let results = Array(search.results.prefix(12))",
     "        let results = Array(search.results.prefix(20))",
     "20 detailed autocomplete results")
+
+# Retain the Apple Maps viewport when entering or leaving the dedicated cover.
+camera_anchor = """                .mapControlVisibility(.hidden)
+                .onTapGesture { point in"""
+camera_replacement = """                .mapControlVisibility(.hidden)
+                .onMapCameraChange(frequency: .onEnd) { context in
+                    let prefs = UserDefaults.standard
+                    prefs.set(context.region.center.latitude, forKey: "mxFullMapLastLatitude")
+                    prefs.set(context.region.center.longitude, forKey: "mxFullMapLastLongitude")
+                    prefs.set(context.camera.distance, forKey: "mxFullMapLastDistance")
+                }
+                .onTapGesture { point in"""
+home = replace_exact(home, camera_anchor, camera_replacement, "Apple camera snapshot")
 
 map_file.write_text(home, encoding="utf-8")
 print("MX Party Animal, silent routes, fullscreen swipe/tap and relevance-ranked place search installed.")
