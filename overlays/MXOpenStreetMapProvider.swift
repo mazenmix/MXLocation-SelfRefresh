@@ -89,6 +89,15 @@ struct MXOpenStreetMapCanvas: UIViewRepresentable {
             onTap(coordinate)
         }
 
+        // Retain the exact OSM camera when moving into the separate full-screen cover.
+        // Never alter map coordinates or GPS; save viewport presentation only.
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            let defaults = UserDefaults.standard
+            defaults.set(mapView.centerCoordinate.latitude, forKey: "mxFullMapLastLatitude")
+            defaults.set(mapView.centerCoordinate.longitude, forKey: "mxFullMapLastLongitude")
+            defaults.set(mapView.zoomLevel, forKey: "mxFullMapLastZoom")
+        }
+
         func refresh(_ map: MLNMapView, pin: CLLocationCoordinate2D?,
                      active: CLLocationCoordinate2D?) {
             let pinKey = pin.map { String(format: "%.7f:%.7f", $0.latitude, $0.longitude) }
