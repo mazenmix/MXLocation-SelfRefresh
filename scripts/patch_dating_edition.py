@@ -460,3 +460,110 @@ if dating_code.count(original_category) != 1:
 dating_code = dating_code.replace(original_category, fullscreen_category, 1)
 dating_file.write_text(dating_code, encoding="utf-8")
 print("MX v4.8: genuine full-screen venue discovery, rich real place cards and details, OpenStreetMap Liberty colors.")
+
+
+# MX Location Pro 4.9.5: independent Party Animal + silent Navigator.
+party_source = repo / "overlays/MXPartyAnimal.swift"
+assert party_source.is_file(), "Party Animal overlay missing"
+(target / party_source.name).write_bytes(party_source.read_bytes())
+
+# The map content and GPS code remain untouched. These small patches only
+# govern visibility of search chrome and ranking of selected search results.
+map_file = target / "MapHomeView.swift"
+home = map_file.read_text(encoding="utf-8")
+
+def replace_exact(haystack, old, new, label):
+    if haystack.count(old) != 1:
+        raise RuntimeError(f"{label}: expected one Swift anchor, got {haystack.count(old)}")
+    return haystack.replace(old, new, 1)
+
+# A vertical swipe on the search BAR (not the map) enters map-only mode.
+start_bar = home.index("    private var searchBar: some View {")
+end_bar = home.index("    @ViewBuilder\n    private func searchResults(", start_bar)
+bar = home[start_bar:end_bar]
+bar = replace_exact(bar,
+    "        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))",
+    """        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 35).onEnded { value in
+                if value.translation.height < -65 &&
+                    abs(value.translation.width) < 100 && !searchFocused {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+                        premiumNavigation.isImmersiveMap = true
+                        premiumNavigation.isSearchActive = false
+                    }
+                }
+            }
+        )
+        .accessibilityIdentifier("mxSwipeSearchToFullscreen")""",
+    "search swipe")
+home = home[:start_bar] + bar + home[end_bar:]
+
+home = replace_exact(home,
+    "                    searchBar\n",
+    """                    searchBar
+                        .opacity(premiumNavigation.isImmersiveMap ? 0 : 1)
+                        .allowsHitTesting(!premiumNavigation.isImmersiveMap)
+""", "hidden search field")
+
+home = replace_exact(home,
+    "                    if !searchFocused {\n",
+    "                    if !searchFocused && !premiumNavigation.isImmersiveMap {\n",
+    "hidden map buttons")
+
+home = replace_exact(home,
+    """                .onTapGesture { point in
+                    searchFocused = false
+                    guard !suppressNextMapTap""",
+    """                .onTapGesture { point in
+                    if premiumNavigation.isImmersiveMap {
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) {
+                            premiumNavigation.isImmersiveMap = false
+                        }
+                        return
+                    }
+                    searchFocused = false
+                    guard !suppressNextMapTap""", "Apple map tap restores chrome")
+
+home = replace_exact(home,
+    """                    onTap: { coordinate in
+                        searchFocused = false
+                        choosePin(coordinate,""",
+    """                    onTap: { coordinate in
+                        if premiumNavigation.isImmersiveMap {
+                            withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) {
+                                premiumNavigation.isImmersiveMap = false
+                            }
+                            return
+                        }
+                        searchFocused = false
+                        choosePin(coordinate,""", "OpenStreetMap tap restores chrome")
+
+# MKLocalSearchCompletions already supply structured names and subtitles;
+# resolve ambiguous duplicates by strongest name match and then distance.
+selection_old = """            if let response = try? await MKLocalSearch(request: request).start(),
+               let item = response.mapItems.first {"""
+selection_new = """            if let response = try? await MKLocalSearch(request: request).start(),
+               let item = response.mapItems.min(by: { lhs, rhs in
+                   func score(_ candidate: MKMapItem) -> Double {
+                       let title = candidate.name ?? ""
+                       var value: Double = title.localizedCaseInsensitiveCompare(completion.title) == .orderedSame
+                           ? 0 : (title.localizedCaseInsensitiveContains(completion.title) ? 12 : 30)
+                       if let center = session.pin ?? session.simulated ?? session.realCoordinate {
+                           value += min(120, CLLocation(latitude: center.latitude, longitude: center.longitude)
+                               .distance(from: CLLocation(latitude: candidate.placemark.coordinate.latitude,
+                                                          longitude: candidate.placemark.coordinate.longitude)) / 1000) * 0.035
+                       }
+                       return value
+                   }
+                   return score(lhs) < score(rhs)
+               }) {"""
+home = replace_exact(home, selection_old, selection_new, "rank resolved search result")
+
+home = replace_exact(home,
+    "        let results = Array(search.results.prefix(12))",
+    "        let results = Array(search.results.prefix(20))",
+    "20 detailed autocomplete results")
+
+map_file.write_text(home, encoding="utf-8")
+print("MX Party Animal, silent routes, fullscreen swipe/tap and relevance-ranked place search installed.")
