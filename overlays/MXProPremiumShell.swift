@@ -25,7 +25,7 @@ final class MXPremiumNavigation: ObservableObject {
 }
 
 enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
-    case dateSpots, adultVenues, afterDark, romanticStays, socialRadar, selfCare, nightlife, cafes, activities, jazz
+    case dateSpots, adultVenues, afterDark, romanticStays, socialRadar, selfCare, nightlife, cafes, activities, jazz, spaWellness, nightclubs, convenienceStores, lateNightFood
 
     var id: String { rawValue }
     var title: String {
@@ -40,6 +40,10 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .cafes: "Cafés"
         case .activities: "Activities"
         case .jazz: "Jazz & Live Music"
+        case .spaWellness: "SPA & Wellness"
+        case .nightclubs: "Nightclubs"
+        case .convenienceStores: "Convenience Stores"
+        case .lateNightFood: "Late-Night Food"
         }
     }
     var shortTitle: String {
@@ -62,6 +66,10 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .cafes: "cup.and.saucer.fill"
         case .activities: "figure.walk"
         case .jazz: "music.note"
+        case .spaWellness: "water.waves"
+        case .nightclubs: "music.mic"
+        case .convenienceStores: "basket.fill"
+        case .lateNightFood: "fork.knife"
         }
     }
     var tint: Color {
@@ -76,36 +84,46 @@ enum MXPremiumCategory: String, CaseIterable, Identifiable, Hashable {
         case .cafes: Color(red: 1.0, green: 0.60, blue: 0.25)
         case .activities: Color(red: 0.23, green: 0.88, blue: 0.62)
         case .jazz: Color(red: 0.70, green: 0.46, blue: 1.0)
+        case .spaWellness: Color(red: 0.16, green: 0.62, blue: 1.0)
+        case .nightclubs: Color(red: 0.65, green: 0.30, blue: 0.95)
+        case .convenienceStores: Color(red: 0.18, green: 0.76, blue: 0.60)
+        case .lateNightFood: Color(red: 1.0, green: 0.60, blue: 0.24)
         }
     }
     var subtitle: String {
         switch self {
         case .dateSpots: "Romantic venues & cafés"
-        case .adultVenues: "Adult-only, sex-positive and nightlife venues"
-        case .afterDark: "Late-night discoveries, cabaret & hidden bars"
+        case .adultVenues: "Strip clubs only; no spas or unrelated businesses"
+        case .afterDark: "Late-night lounges and hidden bars"
         case .romanticStays: "Boutique and adult-only hotels"
         case .socialRadar: "Public social gathering places"
-        case .selfCare: "Massage, spas, barbers, nails & relaxation"
+        case .selfCare: "Hair, barbers, nails and grooming"
         case .nightlife: "Lounges, clubs & evening venues"
         case .cafes: "Coffee shops & casual meetups"
         case .activities: "Public activities & attractions"
         case .jazz: "Live jazz & music venues"
+        case .spaWellness: "Massage, relaxation, pampering and wellness"
+        case .nightclubs: "DJ sets, dance floors and party venues"
+        case .convenienceStores: "Convenience stores and mini marts"
+        case .lateNightFood: "Night dining; verify opening hours"
         }
     }
     var searchTerms: [String] {
         switch self {
         case .dateSpots: ["romantic restaurant", "rooftop restaurant", "date cafe", "cozy wine bar", "couples activity", "sunset view restaurant"]
-        case .adultVenues: ["adult entertainment club", "burlesque cabaret", "swingers lifestyle club",
-                             "strip club", "fetish nightclub", "adult cabaret show",
-                             "couples lifestyle lounge", "clothing optional resort"]
-        case .afterDark: ["speakeasy bar", "late night lounge", "cabaret club", "nightclub"]
+        case .adultVenues: ["strip club", "gentlemens club", "go-go dance club", "exotic dance club"]
+        case .afterDark: ["speakeasy bar", "late night lounge", "rooftop bar", "nightclub"]
         case .romanticStays: ["boutique hotel", "romantic hotel", "adults only resort"]
         case .socialRadar: ["social club", "community events venue", "social dance studio", "speed dating event venue", "language exchange cafe", "board game cafe"]
-        case .selfCare: ["day spa", "massage therapy", "wellness center", "barbershop", "hair salon", "nail salon", "foot spa", "facial spa"]
-        case .nightlife: ["nightlife", "cocktail lounge", "nightclub"]
+        case .selfCare: ["barbershop", "hair salon", "nail salon", "beauty salon"]
+        case .nightlife: ["cocktail lounge", "rooftop bar", "speakeasy bar", "pub", "jazz bar", "KTV karaoke", "billiards lounge"]
         case .cafes: ["coffee shop", "cafe", "coffee bar"]
         case .activities: ["museum", "activity center", "attraction"]
         case .jazz: ["jazz bar", "live music", "music lounge"]
+        case .spaWellness: ["day spa", "wellness center", "Thai massage", "Swedish massage", "deep tissue massage", "aromatherapy", "foot reflexology", "head spa", "facial spa", "sauna steam", "hammam body scrub", "couples spa"]
+        case .nightclubs: ["nightclub", "dance club", "DJ club", "disco"]
+        case .convenienceStores: ["convenience store", "7-Eleven", "Uncle John's", "FamilyMart", "mini mart"]
+        case .lateNightFood: ["late night restaurant", "24 hour restaurant", "24 hour diner", "night food"]
         }
     }
 }
@@ -532,19 +550,19 @@ struct MXPremiumCategoryScreen: View {
     private var filters: [String] {
         switch category {
         case .dateSpots: return ["All", "Restaurants", "Rooftops", "Lounges", "Wine Bars", "Private Dining"]
-        case .adultVenues: return ["All", "Adult Clubs", "Swingers Clubs", "Strip Clubs",
-                                   "Kink Events", "Fetish Clubs", "Couples Lounges",
-                                   "Burlesque", "Cabaret", "Erotic Shows",
-                                   "Adult Stores", "Adult Cinemas", "Nudist Beaches",
-                                   "18+ Resorts", "Sensual Spas", "After-hours"]
+        case .adultVenues: return ["All", "Strip Clubs"]
         case .afterDark: return ["All", "Speakeasies", "Rooftops", "Nightclubs", "24H Cafes", "Live Music"]
         case .romanticStays: return ["All", "Boutique Hotels", "18+ Hotels", "Luxury Hotels", "Resorts"]
         case .socialRadar: return ["All", "Cafés", "Groups", "Activities", "Social Dance", "Language Exchanges", "Board Games"]
-        case .selfCare: return ["All", "Massage", "Spas", "Foot Spa", "Nails", "Hair", "Barbers", "Facials", "Wellness"]
-        case .nightlife: return ["All", "Bars", "Clubs", "Lounges", "Live Music"]
+        case .selfCare: return ["All", "Nails", "Hair", "Barbers", "Beauty Salons"]
+        case .nightlife: return ["All", "Bars", "Lounges", "Live Music", "Rooftops", "Speakeasy Bars", "KTV & Karaoke", "Pool & Billiards"]
         case .cafes: return ["All", "Coffee", "Dessert", "Quiet"]
         case .activities: return ["All", "Museums", "Outdoors", "Games"]
         case .jazz: return ["All", "Jazz", "Live Music", "Lounge"]
+        case .spaWellness: return ["All", "Day Spa", "Thai Massage", "Swedish Massage", "Deep Tissue", "Head Spa", "Reflexology", "Sauna & Steam", "Aromatherapy", "Facials & Skin", "Couples Spa"]
+        case .nightclubs: return ["All", "Nightclubs", "Dance Clubs", "DJ Clubs"]
+        case .convenienceStores: return ["All", "7-Eleven", "Uncle John's", "FamilyMart", "Mini Marts"]
+        case .lateNightFood: return ["All", "Late-Night Food", "24-Hour Restaurants", "Diners"]
         }
     }
     private var customSearch: String? {
@@ -555,21 +573,7 @@ struct MXPremiumCategoryScreen: View {
         case "Lounges", "Lounge": return "lounge"
         case "Wine Bars": return "wine bar"
         case "Private Dining": return "private dining restaurant"
-        case "Adult Clubs": return "adult entertainment club"
-        case "Swingers Clubs": return "swingers lifestyle club"
-        case "Kink Events": return "kink friendly event venue"
-        case "Fetish Clubs": return "fetish club"
-        case "Couples Lounges": return "adult couples lifestyle lounge"
-        case "Erotic Shows": return "adult burlesque show venue"
-        case "After-hours": return "late night adult cabaret lounge"
         case "Strip Clubs": return "strip club"
-        case "Burlesque": return "burlesque show venue"
-        case "Cabaret": return "cabaret club"
-        case "Adult Stores": return "adult novelty store"
-        case "Adult Cinemas": return "adult movie theater"
-        case "Nudist Beaches": return "clothing optional beach"
-        case "18+ Resorts", "18+ Hotels": return "adults only hotel"
-        case "Sensual Spas": return "adult spa wellness"
         case "Speakeasies": return "speakeasy bar"
         case "Nightclubs", "Clubs": return "nightclub"
         case "24H Cafes": return "24 hour cafe"
@@ -586,14 +590,33 @@ struct MXPremiumCategoryScreen: View {
         case "Social Dance": return "social dance studio"
         case "Language Exchanges": return "language exchange cafe"
         case "Board Games": return "board game cafe"
-        case "Massage": return "massage therapy"
-        case "Spas": return "day spa"
-        case "Foot Spa": return "foot spa"
         case "Nails": return "nail salon"
         case "Hair": return "hair salon"
         case "Barbers": return "barber shop"
-        case "Facials": return "facial spa"
-        case "Wellness": return "wellness center"
+        case "Beauty Salons": return "beauty salon"
+        case "Day Spa": return "day spa"
+        case "Thai Massage": return "Thai massage"
+        case "Swedish Massage": return "Swedish massage"
+        case "Deep Tissue": return "deep tissue massage"
+        case "Head Spa": return "head spa"
+        case "Reflexology": return "foot reflexology"
+        case "Sauna & Steam": return "sauna steam room"
+        case "Aromatherapy": return "aromatherapy spa"
+        case "Facials & Skin": return "facial spa"
+        case "Couples Spa": return "couples spa"
+        case "Nightclubs": return "nightclub"
+        case "Dance Clubs": return "dance club"
+        case "DJ Clubs": return "DJ club"
+        case "Speakeasy Bars": return "speakeasy bar"
+        case "KTV & Karaoke": return "karaoke KTV"
+        case "Pool & Billiards": return "billiards lounge"
+        case "Late-Night Food": return "late night restaurant"
+        case "24-Hour Restaurants": return "24 hour restaurant"
+        case "Diners": return "24 hour diner"
+        case "7-Eleven": return "7-Eleven"
+        case "Uncle John's": return "Uncle John's"
+        case "FamilyMart": return "FamilyMart"
+        case "Mini Marts": return "mini mart"
         case "Museums": return "museum"
         case "Outdoors": return "public park"
         case "Games": return "bowling arcade"
