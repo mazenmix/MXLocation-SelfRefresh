@@ -482,6 +482,11 @@ party_source = repo / "overlays/MXPartyAnimal.swift"
 assert party_source.is_file(), "Party Animal overlay missing"
 (target / party_source.name).write_bytes(party_source.read_bytes())
 
+# Route maps use one reusable expand/minimize affordance in every screen.
+expandable_source = repo / "overlays/MXExpandableRouteMap.swift"
+assert expandable_source.is_file(), "Reusable route map overlay missing"
+(target / expandable_source.name).write_bytes(expandable_source.read_bytes())
+
 # The map content and GPS code remain untouched. These small patches only
 # govern visibility of search chrome and ranking of selected search results.
 map_file = target / "MapHomeView.swift"
