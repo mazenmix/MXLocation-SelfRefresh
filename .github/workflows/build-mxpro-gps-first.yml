@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-radius-ring-v417-20261016
+      - codex/mx-pro-floating-radius-v418-20261016
   workflow_dispatch:
 permissions:
   contents: read
@@ -68,6 +68,10 @@ jobs:
           python3 scripts/patch_mx_google_maps_v415.py Locus-src
           python3 scripts/patch_mx_radius_v416.py Locus-src
           python3 scripts/patch_mx_radius_ring_v417.py Locus-src
+          python3 scripts/patch_mx_floating_radius_v418.py Locus-src
+          grep -Fq 'ForEach([1.0, 3.0, 5.0, 10.0, 15.0], id: \.self)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
+          grep -Fq '.overlay(alignment: .bottomTrailing)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
+          ! grep -q 'private var radiusToolbar' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -q 'MapCircle(center: selectedCenter, radius: radiusKM \* 1_000)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'ForEach([1.0, 5.0, 10.0, 15.0], id: \.self)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'ForEach([1.0, 5.0, 10.0, 15.0], id: \.self)' Locus-src/Locus/Features/Map/MXProDiscovery.swift
@@ -100,21 +104,21 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.17.0'
-          d['CFBundleVersion']='170'
+          d['CFBundleShortVersionString']='4.18.0'
+          d['CFBundleVersion']='180'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.17.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.17.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.17.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.18.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.18.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.18.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.17.0
+          name: MX-Location-Pro-GPS-First-v4.18.0
           path: |
-            MX-Location-Pro-GPS-First-v4.17.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.17.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.18.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.18.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
