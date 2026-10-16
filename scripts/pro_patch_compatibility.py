@@ -35,3 +35,13 @@ print(f'MX Location Pro GPS First: installed {len(files)} Swift modules; GPS tab
 """
 p.write_text(s[:start] + new, encoding="utf-8")
 print("Prepared custom TabBar injection without altering the GPS engine")
+
+# Swift catch implicitly defines an immutable 'error'; use the model property explicitly.
+toolbox = p.resolve().parents[1] / "Sources" / "MXProToolbox.swift"
+t = toolbox.read_text(encoding="utf-8")
+old_error = '                error="Directory not available: \\(error.localizedDescription)"'
+new_error = '                self.error="Directory not available: \\(error.localizedDescription)"'
+if t.count(old_error) != 1:
+    raise RuntimeError("Cannot safely locate MX Singles catch/property shadowing error")
+toolbox.write_text(t.replace(old_error, new_error, 1), encoding="utf-8")
+print("Fixed immutable catch-error shadowing in MXProToolbox.swift")
