@@ -49,6 +49,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sed -n '1,55p' Locus-src/Locus/Features/Map/RootView.swift
           python3 MXLocationProV4/Builder/patch_mxpro_v4.py Locus-src
           cp MXLocationProV4/Assets/MXProIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           xcrun swiftc -frontend -parse MXLocationProV4/Sources/*.swift
