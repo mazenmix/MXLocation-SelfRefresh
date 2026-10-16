@@ -19,8 +19,9 @@ new='''                Map(position: $camera) {
                     }
                     ForEach(visiblePlaces) { place in'''
 assert source.count(old)==1, "Map content layout was unexpectedly changed"
-assert 'ForEach([1.0, 5.0, 10.0, 15.0], id: \.self)' in source, "Expected tested v4.16 radius menu"
-assert 'Circle().fill(gpsIndicator.color)' not in source, "Legacy GPS green dot still present"
+assert r'ForEach([1.0, 5.0, 10.0, 15.0], id: \.self)' in source, "Expected tested v4.16 radius menu"
+toolbar = source.split('private var radiusToolbar: some View {', 1)[1].split('private func results(', 1)[0]
+assert 'Circle().fill(gpsIndicator.color)' not in toolbar, "Legacy GPS green dot still visible in toolbar"
 assert 'session.teleport(to: place.coordinate, pairing: pairing)' in source, "GPS teleport operation changed"
 assert '@State private var radiusKM: Double = 5' in source
 path.write_text(source.replace(old,new,1),encoding="utf-8")
