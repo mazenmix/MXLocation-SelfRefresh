@@ -19,7 +19,7 @@ assert 'MXCertificateInfo.expirationDate()' in src
 old=reminder.read_text(encoding="utf-8")
 assert "enum MXExpiryReminder" in old and "requestPrefix" in old
 assert "Your SideStore signing expires soon." in old
-safe=String.raw'''import Foundation
+safe=r'''import Foundation
 import UIKit
 import UserNotifications
 
