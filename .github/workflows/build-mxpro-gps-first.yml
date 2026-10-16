@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-signing-status-fix-v421-20261017
+      - codex/mx-pro-green-counter-turquoise-stay-v422-20261017
   workflow_dispatch:
 permissions:
   contents: read
@@ -72,8 +72,11 @@ jobs:
           python3 scripts/patch_mx_radius_reposition_v419.py Locus-src
           python3 scripts/patch_mx_km_next_to_settings_v420.py Locus-src
           python3 scripts/patch_mx_signing_status_v421.py Locus-src
-          grep -Fq 'Reference only. This date may remain unchanged after a successful SideStore refresh.' Locus-src/Locus/Features/Settings/SettingsView.swift
-          ! grep -Fq '7-Day Activation' Locus-src/Locus/Features/Settings/SettingsView.swift
+          python3 scripts/patch_mx_short_stay_color_v422.py Locus-src
+          grep -Fq 'Text("Renew Certificate")' Locus-src/Locus/Features/Settings/SettingsView.swift
+          grep -Fq 'Profile countdown only. Renewal status is verified in SideStore.' Locus-src/Locus/Features/Settings/SettingsView.swift
+          grep -Fq 'shortStayTurquoise' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
+          grep -Fq 'ForEach([1.0, 3.0, 5.0, 10.0, 15.0], id: \.self)' Locus-src/Locus/Features/Map/RootView.swift
           ! grep -Fq 'Your SideStore signing expires soon.' Locus-src/Locus/Support/MXExpiryReminder.swift
           grep -Fq 'session.teleport(to: place.coordinate, pairing: pairing)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'if selectedTab == 3 {' Locus-src/Locus/Features/Map/RootView.swift
@@ -112,21 +115,21 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.21.0'
-          d['CFBundleVersion']='210'
+          d['CFBundleShortVersionString']='4.22.0'
+          d['CFBundleVersion']='220'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.21.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.21.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.21.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.22.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.22.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.22.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.21.0
+          name: MX-Location-Pro-GPS-First-v4.22.0
           path: |
-            MX-Location-Pro-GPS-First-v4.21.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.21.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.22.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.22.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
