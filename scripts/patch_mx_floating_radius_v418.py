@@ -101,7 +101,6 @@ assert ".sheet(isPresented: $showingRoute)" in src
 assert ".sheet(isPresented: $showingGPSHistory)" in src
 assert "private var radiusToolbar" not in src
 assert "                    radiusToolbar" not in src
-assert "ForEach([1.0, 3.0, 5.0, 10.0, 15.0], id: \\.self)" not in src  # escaping guard
 assert r"ForEach([1.0, 3.0, 5.0, 10.0, 15.0], id: \.self)" in src
 assert "@State private var radiusKM: Double = 5" in src
 path.write_text(src, encoding="utf-8")
