@@ -10,10 +10,9 @@ root=Path(sys.argv[1]).resolve()
 view=root/"Locus/Features/Settings/SettingsView.swift"
 reminder=root/"Locus/Support/MXExpiryReminder.swift"
 src=view.read_text(encoding="utf-8")
-assert 'Text("SideStore Signing")' in src
-assert 'Text("7-Day Activation")' not in src
-assert "Reference only. This date may remain unchanged after a successful SideStore refresh." in src
-assert 'Open SideStore' in src
+assert 'Text("7-Day Activation")' in src
+assert 'Text("Renew Certificate")' in src
+assert 'Profile countdown only. Renewal status is verified in SideStore.' in src
 assert 'private func openSideStore()' in src
 assert 'MXCertificateInfo.expirationDate()' in src
 old=reminder.read_text(encoding="utf-8")
