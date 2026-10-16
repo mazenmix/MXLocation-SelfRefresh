@@ -68,95 +68,61 @@ struct SettingsView: View {
     }
 
     private var activationCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 9) {
-                Image(systemName: "checkmark.shield.fill")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(accent)
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let remaining = certificateExpiration.map { max(0, $0.timeIntervalSince(context.date)) }
+            let totalHours = remaining.map { max(0, Int($0 / 3600)) }
+            let progress = min(max((remaining ?? 0) / (7 * 24 * 60 * 60), 0), 1)
+            let green = Color(red: 0.28, green: 0.84, blue: 0.45)
 
-                Text("SideStore Signing")
-                    .font(.headline.weight(.bold))
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("7-Day Activation")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.white)
 
-                Spacer(minLength: 5)
+                        if let expiration = certificateExpiration {
+                            Text("Profile expires \(formatted(expiration))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Profile expiration unavailable")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
-                Text("Managed by SideStore")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(accent)
-            }
+                    Spacer(minLength: 6)
 
-            Text("Signing and renewal are controlled by SideStore. MX Location cannot confirm that a refresh succeeded.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                    if let totalHours {
+                        Text("\(totalHours / 24)d \(totalHours % 24)h")
+                            .font(.title3.monospacedDigit().weight(.bold))
+                            .foregroundStyle(green)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    } else {
+                        Text("—")
+                            .font(.title3.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-            if let expiration = certificateExpiration {
-                Divider().opacity(0.22)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Embedded profile expiration")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(formatted(expiration))
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.88))
-                    Text("Reference only. This date may remain unchanged after a successful SideStore refresh.")
-                        .font(.caption)
+                ProgressView(value: progress)
+                    .tint(green)
+                    .scaleEffect(x: 1, y: 1.45, anchor: .center)
+                    .accessibilityLabel("Embedded profile time remaining")
+
+                HStack(alignment: .top, spacing: 9) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(green)
+                        .font(.system(size: 16))
+                    Text("Profile countdown only. Renewal status is verified in SideStore.")
+                        .font(.footnote.weight(.medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            } else {
-                Text("No readable embedded provisioning profile was found.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-
-            Text("Verify the active signing status in SideStore → My Apps.")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.white.opacity(0.82))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.07))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-        )
-    }
-
-    private var sideStoreButton: some View {
-        Button {
-            openSideStore()
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(accent.opacity(0.16))
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundStyle(accent)
-                }
-                .frame(width: 44, height: 44)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Open SideStore")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text("Open SideStore and refresh MX Location manually.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                }
-
-                Spacer(minLength: 6)
-
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(14)
+            .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(Color.white.opacity(0.07))
@@ -166,7 +132,25 @@ struct SettingsView: View {
                     .stroke(Color.white.opacity(0.07), lineWidth: 1)
             )
         }
+    }
+
+    private var sideStoreButton: some View {
+        Button {
+            openSideStore()
+        } label: {
+            Text("Renew Certificate")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 58)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color(red: 0.98, green: 0.48, blue: 0.16))
+                )
+                .shadow(color: Color.orange.opacity(0.24), radius: 9, y: 3)
+        }
         .buttonStyle(.plain)
+        .accessibilityHint("Opens SideStore to renew the app certificate")
     }
 
     private func openSideStore() {
