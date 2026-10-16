@@ -16,7 +16,7 @@ map_path=maps/"MapHomeView.swift"
 root_code=root_path.read_text(encoding="utf-8")
 map_code=map_path.read_text(encoding="utf-8")
 
-assert root_code.startswith("import SwiftUI"), "Unexpected root imports"
+assert "import SwiftUI" in root_code, "Root must import SwiftUI"
 assert root_code.count("struct RootView: View {")==1
 assert root_code.count("    @State private var selectedTab = 0")==1
 assert root_code.count("            default:\n                MapHomeView()")==1
