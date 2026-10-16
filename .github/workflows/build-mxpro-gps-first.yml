@@ -72,7 +72,7 @@ jobs:
           python3 scripts/patch_mx_radius_reposition_v419.py Locus-src
           grep -Fq '.padding(.top, 92)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'ForEach([1.0, 3.0, 5.0, 10.0, 15.0], id: \.self)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
-          grep -Fq '.overlay(alignment: .bottomTrailing)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
+          grep -Fq '.overlay(alignment: .topTrailing)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           ! grep -q 'private var radiusToolbar' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -q 'MapCircle(center: selectedCenter, radius: radiusKM \* 1_000)' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'ForEach([1.0, 5.0, 10.0, 15.0], id: \.self)' Locus-src/Locus/Features/Map/MXProDiscovery.swift
