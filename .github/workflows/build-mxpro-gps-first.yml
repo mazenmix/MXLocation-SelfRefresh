@@ -1,0 +1,95 @@
+name: Build MX Location Pro GPS First IPA
+on:
+  push:
+    branches:
+      - codex/mx-location-pro-gps-first-20261016
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout isolated build branch
+        uses: actions/checkout@v4
+      - name: Select Apple Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.2"
+      - name: Unpack audited GPS-first source and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p MXLocationProV4
+          base64 -D -i MXLocationProV4_payload.b64 -o "$RUNNER_TEMP/mx-source.zip"
+          echo 'a2efa059846504a927c566c4465467a92d54c87d63fd09ddd47ec06c86af404e  '"$RUNNER_TEMP/mx-source.zip" | shasum -a 256 -c
+          unzip -oq "$RUNNER_TEMP/mx-source.zip" -d MXLocationProV4
+          test -f MXLocationProV4/Builder/patch_mxpro_v4.py
+          test -f MXLocationProV4/Sources/MXPlaceExplorer.swift
+      - name: Checkout pinned Locus and apply base GPS patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global http.version HTTP/1.1
+          git clone https://github.com/ChrisMack32/Locus.git Locus-src
+          git -C Locus-src checkout 83c8fb324983728e8f44759cfd834dc637ee38b5
+          swift scripts/render_user_mx_icon.swift assets/MXAppIcon1024.png
+          python3 scripts/patch_locus_direct.py Locus-src
+          python3 scripts/patch_clean_ui_v123.py Locus-src
+          for v in 126 127 128 129 130 131 132; do
+            python3 "scripts/patch_v${v}_features.py" Locus-src
+          done
+          python3 scripts/patch_v132_restore_helpers.py Locus-src
+          python3 scripts/patch_v133_features.py Locus-src
+          python3 scripts/patch_v140_worlds.py Locus-src
+          python3 scripts/patch_v141_features.py Locus-src
+          python3 scripts/patch_v142_features.py Locus-src
+      - name: Inject Pro GPS-first modules and preserve bundle identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 MXLocationProV4/Builder/patch_mxpro_v4.py Locus-src
+          cp MXLocationProV4/Assets/MXProIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          xcrun swiftc -frontend -parse MXLocationProV4/Sources/*.swift
+      - name: Build iOS IPA on macOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          cd Locus-src
+          xcodegen generate
+          xcodebuild -project Locus.xcodeproj -scheme Locus -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM='' build > "$GITHUB_WORKSPACE/xcodebuild-mxpro.log" 2>&1 || { tail -250 "$GITHUB_WORKSPACE/xcodebuild-mxpro.log"; exit 1; }
+      - name: Package unsigned new Pro version
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=$(find Locus-src/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          WORK="$RUNNER_TEMP/mx-pro-output"
+          mkdir -p "$WORK/Payload"
+          cp -R "$APP" "$WORK/Payload/MXLocationPro.app"
+          python3 - "$WORK/Payload/MXLocationPro.app/Info.plist" <<'PY'
+          import plistlib,sys
+          p=sys.argv[1]
+          with open(p,'rb') as f: d=plistlib.load(f)
+          assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
+          assert d.get('CFBundleDisplayName')=='MX Location Pro'
+          d['CFBundleShortVersionString']='4.11.0'
+          d['CFBundleVersion']='110'
+          with open(p,'wb') as f: plistlib.dump(d,f)
+          PY
+          find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
+          find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.11.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.11.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.11.0-unsigned.ipa.sha256
+      - name: Upload IPA and build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MX-Location-Pro-GPS-First-v4.11.0
+          path: |
+            MX-Location-Pro-GPS-First-v4.11.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.11.0-unsigned.ipa.sha256
+            xcodebuild-mxpro.log
+          if-no-files-found: ignore
