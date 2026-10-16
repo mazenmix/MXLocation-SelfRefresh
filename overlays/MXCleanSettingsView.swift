@@ -68,49 +68,62 @@ struct SettingsView: View {
     }
 
     private var activationCard: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-            let state = activationState(now: context.date)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 9) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(accent)
 
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("7-Day Activation")
-                            .font(.headline.weight(.bold))
-                        Text(state.subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                Text("SideStore Signing")
+                    .font(.headline.weight(.bold))
 
-                    Spacer()
+                Spacer(minLength: 5)
 
-                    Text(state.remaining)
-                        .font(.title3.monospacedDigit().weight(.bold))
-                        .foregroundStyle(state.expired ? Color.red : accent)
-                }
-
-                ProgressView(value: state.progress)
-                    .tint(state.expired ? Color.red : accent)
-                    .scaleEffect(x: 1, y: 1.35, anchor: .center)
-
-                HStack {
-                    Image(systemName: state.expired ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(state.expired ? Color.red : Color.green)
-                    Text(state.status)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
+                Text("Managed by SideStore")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(accent)
             }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.white.opacity(0.07))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
-            )
+
+            Text("Signing and renewal are controlled by SideStore. MX Location cannot confirm that a refresh succeeded.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let expiration = certificateExpiration {
+                Divider().opacity(0.22)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Embedded profile expiration")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(formatted(expiration))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.88))
+                    Text("Reference only. This date may remain unchanged after a successful SideStore refresh.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text("No readable embedded provisioning profile was found.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Verify the active signing status in SideStore → My Apps.")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.white.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.07))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+        )
     }
 
     private var sideStoreButton: some View {
@@ -167,43 +180,6 @@ struct SettingsView: View {
         }
     }
 
-    private func activationState(now: Date) -> ActivationState {
-        guard let expiration = certificateExpiration else {
-            return ActivationState(
-                remaining: "—",
-                subtitle: "Waiting for signed profile",
-                status: "The 7-day timer appears after SideStore signs the app.",
-                progress: 0,
-                expired: false
-            )
-        }
-
-        let remainingSeconds = expiration.timeIntervalSince(now)
-        if remainingSeconds <= 0 {
-            return ActivationState(
-                remaining: "Expired",
-                subtitle: "Expired \(formatted(expiration))",
-                status: "Open SideStore and refresh MX Location.",
-                progress: 0,
-                expired: true
-            )
-        }
-
-        let totalHours = max(0, Int(remainingSeconds / 3600))
-        let days = totalHours / 24
-        let hours = totalHours % 24
-        let sevenDays: TimeInterval = 7 * 24 * 60 * 60
-        let progress = min(max(remainingSeconds / sevenDays, 0), 1)
-
-        return ActivationState(
-            remaining: "\(days)d \(hours)h",
-            subtitle: "Expires \(formatted(expiration))",
-            status: "Active — refresh from SideStore before it reaches zero.",
-            progress: progress,
-            expired: false
-        )
-    }
-
     private func formatted(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -212,10 +188,3 @@ struct SettingsView: View {
     }
 }
 
-private struct ActivationState {
-    let remaining: String
-    let subtitle: String
-    let status: String
-    let progress: Double
-    let expired: Bool
-}
