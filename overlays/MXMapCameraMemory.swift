@@ -8,9 +8,12 @@ import SwiftUI
 final class MXMapCameraMemory: ObservableObject {
     private static let storageKey = "mxlocation.map.lastCamera.v1"
     private(set) var lastCamera: MapCamera?
+    let restoredFromDisk: Bool
 
     init() {
-        lastCamera = Self.loadCamera()
+        let saved = Self.loadCamera()
+        lastCamera = saved
+        restoredFromDisk = saved != nil
     }
 
     static func initialPosition() -> MapCameraPosition {
