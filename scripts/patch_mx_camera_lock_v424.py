@@ -47,6 +47,27 @@ new_bottom="""        .safeAreaInset(edge: .bottom, spacing: 2) {
         }"""
 assert root.count(old_bottom)==1, "Could not locate root shell safe area"
 root=root.replace(old_bottom,new_bottom,1)
+# One-time migration: users upgrading from v4.23 have no persisted camera yet.
+# Prefer their actual *selected/simulated* location to the phone's physical GPS.
+insert='''        .onAppear {
+            if !didSeedInitialMapCamera {
+                didSeedInitialMapCamera = true
+                if !mapCameraMemory.restoredFromDisk,
+                   let chosen = session.simulated ?? session.pin {
+                    mapCameraMemory.moveToChosenLocation(chosen, position: $retainedMapCamera)
+                }
+            }
+        }
+'''
+anchor='''        .safeAreaInset(edge: .bottom, spacing: 2) {
+            compactTabBar
+        }
+'''
+assert root.count(anchor)==1
+root=root.replace(anchor,anchor+insert,1)
+state_anchor="    @StateObject private var mapCameraMemory = MXMapCameraMemory()"
+assert root.count(state_anchor)==1
+root=root.replace(state_anchor,state_anchor+"\n    @State private var didSeedInitialMapCamera = false",1)
 
 old_binding="    @Binding var position: MapCameraPosition"
 new_binding="""    @Binding var position: MapCameraPosition
