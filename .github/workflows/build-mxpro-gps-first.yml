@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-short-stay-v413-20261016
+      - codex/mx-pro-quality-v414-20261016
   workflow_dispatch:
 permissions:
   contents: read
@@ -54,6 +54,12 @@ jobs:
           base64 -D -i short_stay_source_patch.b64 -o "$RUNNER_TEMP/shortstay.zip"
           echo '3625f4fecdaca4f61f41d9716760e54efb12a3c9d668551e02de9393ae94dd8e  '"$RUNNER_TEMP/shortstay.zip" | shasum -a 256 -c
           unzip -oq "$RUNNER_TEMP/shortstay.zip" -d MXLocationProV4
+          base64 -D -i quality_v414_source_patch.b64 -o "$RUNNER_TEMP/quality-v414.zip"
+          echo 'd9df01efd843698a624a4634e9c5993b81f447ab046e814e4b4fa13b792f1039  '"$RUNNER_TEMP/quality-v414.zip" | shasum -a 256 -c
+          unzip -oq "$RUNNER_TEMP/quality-v414.zip" -d MXLocationProV4
+          python3 MXLocationProV4/Tests/test_v414_contract.py
+          swiftc -parse-as-library MXLocationProV4/Sources/MXExploreSearchPolicy.swift MXLocationProV4/Tests/test_search_policy.swift -o "$RUNNER_TEMP/quality-policy-test"
+          "$RUNNER_TEMP/quality-policy-test"
           swiftc -parse-as-library MXLocationProV4/Sources/MXPlaceTaxonomy.swift MXLocationProV4/Tests/test_place_taxonomy.swift -o "$RUNNER_TEMP/shortstay-taxonomy-tests"
           "$RUNNER_TEMP/shortstay-taxonomy-tests"
           swiftc -parse-as-library MXLocationProV4/Sources/MXPlaceTaxonomy.swift MXLocationProV4/Tests/test_gps_first.swift -o "$RUNNER_TEMP/shortstay-gps-tests"
@@ -84,21 +90,21 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.13.0'
-          d['CFBundleVersion']='130'
+          d['CFBundleShortVersionString']='4.14.0'
+          d['CFBundleVersion']='140'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.14.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.14.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.14.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.13.0
+          name: MX-Location-Pro-GPS-First-v4.14.0
           path: |
-            MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.14.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.14.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
