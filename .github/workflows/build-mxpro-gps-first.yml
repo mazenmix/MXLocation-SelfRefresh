@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-icon-sheet-polish-20261016
+      - codex/mx-pro-short-stay-v413-20261016
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,6 +51,13 @@ jobs:
           set -euo pipefail
           python3 scripts/pro_patch_compatibility.py MXLocationProV4/Builder/patch_mxpro_v4.py
           python3 scripts/install_pro_polish.py MXLocationProV4
+          base64 -D -i short_stay_source_patch.b64 -o "$RUNNER_TEMP/shortstay.zip"
+          echo '3625f4fecdaca4f61f41d9716760e54efb12a3c9d668551e02de9393ae94dd8e  '"$RUNNER_TEMP/shortstay.zip" | shasum -a 256 -c
+          unzip -oq "$RUNNER_TEMP/shortstay.zip" -d MXLocationProV4
+          swiftc -parse-as-library MXLocationProV4/Sources/MXPlaceTaxonomy.swift MXLocationProV4/Tests/test_place_taxonomy.swift -o "$RUNNER_TEMP/shortstay-taxonomy-tests"
+          "$RUNNER_TEMP/shortstay-taxonomy-tests"
+          swiftc -parse-as-library MXLocationProV4/Sources/MXPlaceTaxonomy.swift MXLocationProV4/Tests/test_gps_first.swift -o "$RUNNER_TEMP/shortstay-gps-tests"
+          "$RUNNER_TEMP/shortstay-gps-tests"
           python3 MXLocationProV4/Builder/patch_mxpro_v4.py Locus-src
           cp MXLocationProV4/Assets/MXProIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           xcrun swiftc -frontend -parse MXLocationProV4/Sources/*.swift
@@ -77,21 +84,21 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.12.0'
-          d['CFBundleVersion']='120'
+          d['CFBundleShortVersionString']='4.13.0'
+          d['CFBundleVersion']='130'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.12.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.12.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.12.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.12.0
+          name: MX-Location-Pro-GPS-First-v4.13.0
           path: |
-            MX-Location-Pro-GPS-First-v4.12.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.12.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.13.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
