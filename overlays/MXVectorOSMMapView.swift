@@ -66,7 +66,8 @@ struct MXVectorOSMMapView: UIViewRepresentable {
             let current = map.centerCoordinate
             if abs(current.latitude - region.center.latitude) > 0.00002 ||
                 abs(current.longitude - region.center.longitude) > 0.00002 {
-                map.setCenter(region.center, zoomLevel: 14, animated: false)
+                // A provider/region change may move the center, never the zoom.
+                map.setCenter(region.center, animated: false)
             }
         }
     }
@@ -141,10 +142,11 @@ struct MXVectorOSMMapView: UIViewRepresentable {
             if let requested = programmaticTarget {
                 // Do not publish synthetic viewport events triggered by app
                 // initialization, map-style refresh, or explicit camera sets.
-                if cameraDiffers(mapView.camera, from: requested) {
-                    apply(requested, to: mapView)
-                } else {
+                // Never chase a spontaneously changing camera during style load.
+                if !cameraDiffers(mapView.camera, from: requested) {
                     programmaticTarget = nil
+                } else {
+                    apply(requested, to: mapView)
                 }
                 return
             }
@@ -205,6 +207,13 @@ struct MXVectorOSMMapView: UIViewRepresentable {
                 // with MapKit distance, preventing cumulative zoom drift.
                 map.setZoomLevel(zoom, animated: false)
             }
+            // Compare against the actual rendered camera after restoring
+            // native vector zoom; MapCamera.distance may round differently.
+            let rendered = map.camera
+            programmaticTarget = MapCamera(centerCoordinate: rendered.centerCoordinate,
+                    distance: max(10, rendered.altitude),
+                    heading: rendered.heading,
+                    pitch: rendered.pitch)
             isApplying = false
         }
 
