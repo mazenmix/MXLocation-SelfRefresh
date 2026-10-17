@@ -6,6 +6,29 @@ struct SettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var certificateExpiration = MXCertificateInfo.expirationDate()
+    @AppStorage("mx.signing.userConfirmedRefreshAt") private var userConfirmedRefreshAt: Double = 0
+    @AppStorage("mx.signing.pendingReturnAt") private var pendingReturnAt: Double = 0
+    @State private var showRefreshConfirmation = false
+
+    // A profile-only SideStore refresh normally does not replace the IPA's
+    // embedded.mobileprovision. Never present a locally estimated date as
+    // verified proof of signing. SideStore remains the authority.
+    private var estimatedExpiration: Date? {
+        guard userConfirmedRefreshAt > 0 else { return nil }
+        return Date(timeIntervalSince1970: userConfirmedRefreshAt + 7 * 24 * 60 * 60)
+    }
+
+    private var displayedExpiration: Date? {
+        guard let estimate = estimatedExpiration else { return certificateExpiration }
+        guard let embedded = certificateExpiration else { return estimate }
+        return max(estimate, embedded)
+    }
+
+    private var showingEstimate: Bool {
+        guard let estimate = estimatedExpiration else { return false }
+        return estimate > (certificateExpiration ?? .distantPast)
+    }
+
 
     private let accent = Color(red: 0.18, green: 0.55, blue: 1.0)
 
@@ -34,12 +57,30 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.large)
         }
         .onAppear {
-            certificateExpiration = MXCertificateInfo.expirationDate()
+            updateSigningStatusOnReturn()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
+                updateSigningStatusOnReturn()
+            }
+        }
+        .confirmationDialog(
+            "Did MX Location refresh successfully in SideStore?",
+            isPresented: $showRefreshConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Yes, refresh succeeded") {
+                // An estimate only, because iOS sandbox isolation prevents
+                // reading SideStore's refreshed installed provisioning profile.
+                userConfirmedRefreshAt = Date().timeIntervalSince1970
+                pendingReturnAt = 0
                 certificateExpiration = MXCertificateInfo.expirationDate()
             }
+            Button("No / Not sure", role: .cancel) {
+                pendingReturnAt = 0
+            }
+        } message: {
+            Text("Confirm only after SideStore shows success. This updates an estimated 7-day timer, not the verified signing expiry.")
         }
     }
 
@@ -69,8 +110,8 @@ struct SettingsView: View {
 
     private var activationCard: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
-            let remaining = certificateExpiration.map { max(0, $0.timeIntervalSince(context.date)) }
-            let totalHours = remaining.map { max(0, Int($0 / 3600)) }
+            let remaining = displayedExpiration.map { max(0, $0.timeIntervalSince(context.date)) }
+            let totalHours = remaining.map { max(0, min(168, Int(ceil($0 / 3600)))) }
             let progress = min(max((remaining ?? 0) / (7 * 24 * 60 * 60), 0), 1)
             let green = Color(red: 0.28, green: 0.84, blue: 0.45)
 
@@ -81,8 +122,8 @@ struct SettingsView: View {
                             .font(.headline.weight(.bold))
                             .foregroundStyle(.white)
 
-                        if let expiration = certificateExpiration {
-                            Text("Profile expires \(formatted(expiration))")
+                        if let expiration = displayedExpiration {
+                            Text("\(showingEstimate ? "Estimated until" : "Profile expires") \(formatted(expiration))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
@@ -116,11 +157,23 @@ struct SettingsView: View {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(green)
                         .font(.system(size: 16))
-                    Text("Profile countdown only. Renewal status is verified in SideStore.")
+                    Text(showingEstimate
+                         ? "Estimated from your confirmed refresh. Verify the actual expiry in SideStore."
+                         : "Profile countdown only. Renewal status is verified in SideStore.")
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Button {
+                    showRefreshConfirmation = true
+                } label: {
+                    Text("I refreshed in SideStore · Sync timer")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(green)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Confirm a successful SideStore renewal to estimate seven new days")
             }
             .padding(16)
             .background(
@@ -155,12 +208,35 @@ struct SettingsView: View {
 
     private func openSideStore() {
         guard let url = URL(string: "sidestore://") else { return }
+        pendingReturnAt = Date().timeIntervalSince1970
         UIApplication.shared.open(url, options: [:]) { opened in
             if !opened {
                 Task { @MainActor in
+                    pendingReturnAt = 0
                     session.lastError = "SideStore could not be opened. Make sure SideStore is installed."
                 }
             }
+        }
+    }
+
+    private func updateSigningStatusOnReturn() {
+        let previous = certificateExpiration
+        let current = MXCertificateInfo.expirationDate()
+        certificateExpiration = current
+
+        // If a new signed embedded profile really was installed, trust it.
+        if let previous, let current, current.timeIntervalSince(previous) > 60 {
+            userConfirmedRefreshAt = 0
+            pendingReturnAt = 0
+            return
+        }
+
+        guard pendingReturnAt > 0 else { return }
+        let elapsed = Date().timeIntervalSince1970 - pendingReturnAt
+        if elapsed > 3 && elapsed < 2 * 60 * 60 {
+            showRefreshConfirmation = true
+        } else if elapsed >= 2 * 60 * 60 {
+            pendingReturnAt = 0
         }
     }
 
