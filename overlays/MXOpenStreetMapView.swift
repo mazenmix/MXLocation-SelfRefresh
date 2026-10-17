@@ -221,10 +221,7 @@ final class MXOpenStreetMapTiles: MKTileOverlay {
 
     override func loadTile(at path: MKTileOverlayPath,
                            result: @escaping (Data?, (any Error)?) -> Void) {
-        guard let url = url(forTilePath: path) else {
-            result(nil, URLError(.badURL))
-            return
-        }
+        let url = url(forTilePath: path)
         var request = URLRequest(url: url)
         request.cachePolicy = .useProtocolCachePolicy
         Self.tileSession.dataTask(with: request) { data, response, error in
