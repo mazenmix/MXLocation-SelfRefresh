@@ -102,7 +102,7 @@ jobs:
           grep -Fq 'if context.coordinator.wasPublished(requested)' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
           grep -Fq '© OpenStreetMap contributors' Locus-src/Locus/Features/Map/MapHomeView.swift
           ! grep -Fq 'private var mapLayerMenu' Locus-src/Locus/Features/Map/MapHomeView.swift
-          grep -Fq 'MXOpenStreetMapView(' Locus-src/Locus/Features/Map/MapHomeView.swift
+          ! grep -Fq 'MXOpenStreetMapView(' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq '@AppStorage("mx.map.provider")' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq '© OpenStreetMap contributors' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'tile.openstreetmap.org/{z}/{x}/{y}.png' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
