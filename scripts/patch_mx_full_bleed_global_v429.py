@@ -50,12 +50,20 @@ h=home.read_text(encoding="utf-8")
 h=once(h,"""            .background(Color.black.ignoresSafeArea())""",
 """            .ignoresSafeArea(.container, edges: [.top, .bottom])
             .background(Color.black.ignoresSafeArea())""")
-h=once(h,"""            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 10)""",
-"""            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 74)""")
+# Pro builds may adjust the lower overlay padding. Find the overlay's
+# own bottom spacing without assuming a particular prior numeric value.
+overlay_start=h.index("            VStack(spacing: 10) {")
+overlay_end=h.index("        .onAppear {", overlay_start)
+overlay=h[overlay_start:overlay_end]
+padding_matches=list(re.finditer(r"(?m)^            \.padding\(\.bottom, \d+\)", overlay))
+if padding_matches:
+    matched=padding_matches[-1].group(0)
+    overlay=overlay[:padding_matches[-1].start()]+matched.split(".padding")[0]+".padding(.bottom, 74)"+overlay[padding_matches[-1].end():]
+else:
+    # On compact shells the original bottom modifier was already removed.
+    overlay=overlay.replace("            .padding(.top, 10)",
+                            "            .padding(.top, 10)\n            .padding(.bottom, 74)",1)
+h=h[:overlay_start]+overlay+h[overlay_end:]
 assert ".ignoresSafeArea(.container, edges: [.top, .bottom])" in h
 assert 'MXOpenStreetMapView(' in h
 home.write_text(h,encoding="utf-8")
