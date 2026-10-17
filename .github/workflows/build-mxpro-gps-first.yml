@@ -87,6 +87,8 @@ jobs:
           # vector/3D renderer used by the main map, and stop camera resets.
           cp overlays/MXVectorOSMMapView.swift Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           cp overlays/MXOSMUniversalMap.swift Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
+          python3 scripts/patch_mx_no_auto_zoom_v432.py Locus-src
+          grep -Fq 'lastCamera?.distance ?? position.wrappedValue.camera?.distance' Locus-src/Locus/Features/Map/MXMapCameraMemory.swift
           grep -Fq 'MXVectorOSMStyle.ensure3DBuildings(in: style)' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           grep -Fq 'MXVectorOSMStyle.ensure3DBuildings(in: style)' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
           grep -Fq 'let map = MLNMapView(' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
