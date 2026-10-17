@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-map-settings-osm-smooth-v428-20261017
+      - codex/mx-pro-full-bleed-global-map-pitch-v429-20261017
   workflow_dispatch:
 permissions:
   contents: read
@@ -79,11 +79,18 @@ jobs:
           python3 scripts/patch_mx_restore_osm_v427.py Locus-src
           python3 scripts/patch_mx_map_settings_v428.py Locus-src
           python3 scripts/patch_mx_osm_smooth_v428.py Locus-src
+          python3 scripts/patch_mx_full_bleed_global_v429.py Locus-src
+          python3 scripts/patch_mx_global_previews_v429.py Locus-src
+          grep -Fq '.ignoresSafeArea(.container, edges: [.top, .bottom])' Locus-src/Locus/Features/Map/MapHomeView.swift
+          grep -Fq 'map.isPitchEnabled = true' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
+          grep -Fq 'MXOSMUniversalMap(' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
+          grep -Fq 'MXUnifiedMapPreview(' Locus-src/Locus/Features/Map/MXWorlds.swift
+          grep -Fq 'MXUnifiedMapPreview(' Locus-src/Locus/Features/Map/MXProToolbox.swift
+          grep -Fq 'if mapProvider == "osm"' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'Picker("Map Provider", selection: $mapProvider)' Locus-src/Locus/Features/Settings/SettingsView.swift
           grep -Fq 'openAppleTransit()' Locus-src/Locus/Features/Settings/SettingsView.swift
           grep -Fq 'apple3DRequest != apple3DHandled' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'tiles.canReplaceMapContent = false' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
-          grep -Fq 'map.isPitchEnabled = false' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
           grep -Fq 'if context.coordinator.wasPublished(requested)' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
           grep -Fq '© OpenStreetMap contributors' Locus-src/Locus/Features/Map/MapHomeView.swift
           ! grep -Fq 'private var mapLayerMenu' Locus-src/Locus/Features/Map/MapHomeView.swift
@@ -167,21 +174,21 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.28.0'
-          d['CFBundleVersion']='280'
+          d['CFBundleShortVersionString']='4.29.0'
+          d['CFBundleVersion']='290'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.28.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.28.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.28.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.29.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.29.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.29.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.28.0
+          name: MX-Location-Pro-GPS-First-v4.29.0
           path: |
-            MX-Location-Pro-GPS-First-v4.28.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.28.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.29.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.29.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
