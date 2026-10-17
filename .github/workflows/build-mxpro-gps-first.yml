@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-refresh-countdown-v425-20261017
+      - codex/mx-pro-real-profile-and-map-zoom-v426-20261017
   workflow_dispatch:
 permissions:
   contents: read
@@ -75,10 +75,12 @@ jobs:
           python3 scripts/patch_mx_short_stay_color_v422.py Locus-src
           python3 scripts/patch_mx_retain_map_camera_v423.py Locus-src
           python3 scripts/patch_mx_camera_lock_v424.py Locus-src
-          python3 scripts/test_signing_countdown_v425.py Locus-src
-          grep -Fq '@AppStorage("mx.signing.userConfirmedRefreshAt")' Locus-src/Locus/Features/Settings/SettingsView.swift
-          grep -Fq 'I refreshed in SideStore · Sync timer' Locus-src/Locus/Features/Settings/SettingsView.swift
-          grep -Fq 'current.timeIntervalSince(previous) > 60' Locus-src/Locus/Features/Settings/SettingsView.swift
+          python3 scripts/patch_mx_genuine_renewal_v426.py Locus-src
+          grep -Fq 'misagent_copy_all(misagent, &profiles, &lengths, &count)' Locus-src/Locus/Support/MXInstalledProvisionReader.swift
+          grep -Fq 'session.manualTeleportRevision' Locus-src/Locus/Features/Map/RootView.swift
+          grep -Fq 'manualTeleportRevision &+= 1' Locus-src/Locus/Engine/SpoofSession.swift
+          grep -Fq 'Live installed provisioning profile' Locus-src/Locus/Features/Settings/SettingsView.swift
+          ! grep -Fq 'userConfirmedRefreshAt' Locus-src/Locus/Features/Settings/SettingsView.swift
           grep -Fq 'cameraMemory.observe(context.camera)' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq '.onMapCameraChange(frequency: .continuous)' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'cameraMemory.lock($position)' Locus-src/Locus/Features/Map/MapHomeView.swift
@@ -130,21 +132,21 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.25.0'
-          d['CFBundleVersion']='250'
+          d['CFBundleShortVersionString']='4.26.0'
+          d['CFBundleVersion']='260'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.25.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.25.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.25.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.25.0
+          name: MX-Location-Pro-GPS-First-v4.26.0
           path: |
-            MX-Location-Pro-GPS-First-v4.25.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.25.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
