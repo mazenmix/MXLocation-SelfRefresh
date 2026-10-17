@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-real-profile-and-map-zoom-v426-20261017
+      - codex/mx-pro-restore-osm-v427-20261017
   workflow_dispatch:
 permissions:
   contents: read
@@ -76,6 +76,13 @@ jobs:
           python3 scripts/patch_mx_retain_map_camera_v423.py Locus-src
           python3 scripts/patch_mx_camera_lock_v424.py Locus-src
           python3 scripts/patch_mx_genuine_renewal_v426.py Locus-src
+          python3 scripts/patch_mx_restore_osm_v427.py Locus-src
+          grep -Fq 'MXOpenStreetMapView(' Locus-src/Locus/Features/Map/MapHomeView.swift
+          grep -Fq '@AppStorage("mx.map.provider")' Locus-src/Locus/Features/Map/MapHomeView.swift
+          grep -Fq '© OpenStreetMap contributors' Locus-src/Locus/Features/Map/MapHomeView.swift
+          grep -Fq 'tile.openstreetmap.org/{z}/{x}/{y}.png' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
+          grep -Fq 'cameraMemory.save()' Locus-src/Locus/Features/Map/MXOpenStreetMapView.swift
+          grep -Fq 'Map(position: $position)' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'misagent_copy_all(misagent, &profiles, &lengths, &count)' Locus-src/Locus/Support/MXInstalledProvisionReader.swift
           grep -Fq 'session.manualTeleportRevision' Locus-src/Locus/Features/Map/RootView.swift
           grep -Fq 'manualTeleportRevision &+= 1' Locus-src/Locus/Engine/SpoofSession.swift
@@ -150,21 +157,21 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.26.0'
-          d['CFBundleVersion']='260'
+          d['CFBundleShortVersionString']='4.27.0'
+          d['CFBundleVersion']='270'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.27.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.27.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.27.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.26.0
+          name: MX-Location-Pro-GPS-First-v4.27.0
           path: |
-            MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.26.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.27.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.27.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
