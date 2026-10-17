@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-global-vector-camera-lock-v432-20261017
+      - codex/mx-pro-native-gesture-zoom-v433-20261017
   workflow_dispatch:
 permissions:
   contents: read
@@ -87,6 +87,9 @@ jobs:
           # vector/3D renderer used by the main map, and stop camera resets.
           cp overlays/MXVectorOSMMapView.swift Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           cp overlays/MXOSMUniversalMap.swift Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
+          # v4.33: both the main map and all secondary maps must treat
+          # user-gesture camera changes as the source of truth.
+          python3 scripts/test_mx_map_gesture_v433.py Locus-src
           python3 scripts/patch_mx_no_auto_zoom_v432.py Locus-src
           grep -Fq 'lastCamera?.distance ?? position.wrappedValue.camera?.distance' Locus-src/Locus/Features/Map/MXMapCameraMemory.swift
           grep -Fq 'MXVectorOSMStyle.ensure3DBuildings(in: style)' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
@@ -214,20 +217,20 @@ jobs:
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
           d['CFBundleShortVersionString']='4.32.0'
-          d['CFBundleVersion']='320'
+          d['CFBundleVersion']='330'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.33.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.33.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.33.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.32.0
+          name: MX-Location-Pro-GPS-First-v4.33.0
           path: |
-            MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.33.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.33.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
