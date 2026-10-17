@@ -216,3 +216,28 @@ struct MXUnifiedMapPreview: View {
                      longitudinalMeters: max(150, distance)))
     }
 }
+
+
+enum MXMapRouteGeometry {
+    static func coordinates(_ polyline: MKPolyline) -> [CLLocationCoordinate2D] {
+        guard polyline.pointCount > 0 else { return [] }
+        var points = [CLLocationCoordinate2D](repeating:
+                        CLLocationCoordinate2D(latitude: 0, longitude: 0),
+                        count: polyline.pointCount)
+        polyline.getCoordinates(&points,
+            range: NSRange(location: 0, length: polyline.pointCount))
+        return points
+    }
+    static func center(_ coords: [CLLocationCoordinate2D]) -> CLLocationCoordinate2D {
+        guard !coords.isEmpty else { return CLLocationCoordinate2D(latitude: 0, longitude: 0) }
+        return CLLocationCoordinate2D(
+            latitude: (coords.map(\.latitude).min()! + coords.map(\.latitude).max()!) / 2,
+            longitude: (coords.map(\.longitude).min()! + coords.map(\.longitude).max()!) / 2)
+    }
+    static func spanMeters(_ coords: [CLLocationCoordinate2D]) -> Double {
+        guard coords.count >= 2 else { return 5000 }
+        let latSpan = (coords.map(\.latitude).max()! - coords.map(\.latitude).min()!) * 111_320
+        let lonSpan = (coords.map(\.longitude).max()! - coords.map(\.longitude).min()!) * 111_320
+        return max(2000, max(latSpan, lonSpan) * 1.65)
+    }
+}
