@@ -91,7 +91,7 @@ jobs:
           grep -Fq 'Map(position: $position)' Locus-src/Locus/Features/Map/MapHomeView.swift
           ! grep -Fq '@State private var position: MapCameraPosition' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'Text("Renew Certificate")' Locus-src/Locus/Features/Settings/SettingsView.swift
-          grep -Fq 'Profile countdown only. Renewal status is verified in SideStore.' Locus-src/Locus/Features/Settings/SettingsView.swift
+          grep -Fq 'Embedded profile only. SideStore refresh may have a newer installed expiry.' Locus-src/Locus/Features/Settings/SettingsView.swift
           grep -Fq 'shortStayTurquoise' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'ForEach([1.0, 3.0, 5.0, 10.0, 15.0], id: \.self)' Locus-src/Locus/Features/Map/RootView.swift
           ! grep -Fq 'Your SideStore signing expires soon.' Locus-src/Locus/Support/MXExpiryReminder.swift
