@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-maplibre-fullscreen-3d-v431-20261017
+      - codex/mx-pro-global-vector-camera-lock-v432-20261017
   workflow_dispatch:
 permissions:
   contents: read
@@ -83,6 +83,16 @@ jobs:
           python3 scripts/patch_mx_global_previews_v429.py Locus-src
           python3 scripts/patch_mx_vector_3d_v430.py Locus-src
           python3 scripts/patch_mx_v431_fullscreen_vector.py Locus-src
+          # v4.32: replace older raster secondary maps with the very same
+          # vector/3D renderer used by the main map, and stop camera resets.
+          cp overlays/MXVectorOSMMapView.swift Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
+          cp overlays/MXOSMUniversalMap.swift Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
+          grep -Fq 'MXVectorOSMStyle.ensure3DBuildings(in: style)' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
+          grep -Fq 'MXVectorOSMStyle.ensure3DBuildings(in: style)' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
+          grep -Fq 'let map = MLNMapView(' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
+          ! grep -Fq 'MKTileOverlay' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
+          grep -Fq 'map.setCenter(region.center, animated: false)' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
+          grep -Fq 'nativeViewport.v432' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           grep -Fq 'mxWindowSafeArea.top' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'OpenStreetMap Vector 3D' Locus-src/Locus/Features/Settings/SettingsView.swift
           ! grep -Fq 'embed: true' Locus-src/project.yml
@@ -202,20 +212,20 @@ jobs:
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
           d['CFBundleShortVersionString']='4.31.0'
-          d['CFBundleVersion']='310'
+          d['CFBundleVersion']='320'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.31.0
+          name: MX-Location-Pro-GPS-First-v4.32.0
           path: |
-            MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.32.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
