@@ -102,7 +102,7 @@ jobs:
           grep -Fq 'MLNFillExtrusionStyleLayer' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           grep -Fq 'https://tiles.openfreemap.org/styles/liberty' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           grep -Fq 'MapLibreSDK:' Locus-src/project.yml
-          grep -Fq 'distance: max(5400, min(11000' Locus-src/Locus/Features/Map/MXMapCameraMemory.swift
+          grep -Fq 'distance: max(10, lastCamera?.distance' Locus-src/Locus/Features/Map/MXMapCameraMemory.swift
           grep -Fq 'lineWidth: option == .shortStay ? 1.7 : 0.7' Locus-src/Locus/Features/Map/MXPlaceExplorer.swift
           grep -Fq 'manualTeleportRevision' Locus-src/Locus/Engine/SpoofSession.swift
           grep -Fq '.ignoresSafeArea(.container, edges: [.top, .bottom])' Locus-src/Locus/Features/Map/MapHomeView.swift
