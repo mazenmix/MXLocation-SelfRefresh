@@ -2,7 +2,7 @@ name: Build MX Location Pro GPS First IPA
 on:
   push:
     branches:
-      - codex/mx-pro-vector-3d-smooth-zoom-stay-v430-20261017
+      - codex/mx-pro-maplibre-fullscreen-3d-v431-20261017
   workflow_dispatch:
 permissions:
   contents: read
@@ -82,6 +82,10 @@ jobs:
           python3 scripts/patch_mx_full_bleed_global_v429.py Locus-src
           python3 scripts/patch_mx_global_previews_v429.py Locus-src
           python3 scripts/patch_mx_vector_3d_v430.py Locus-src
+          python3 scripts/patch_mx_v431_fullscreen_vector.py Locus-src
+          grep -Fq 'mxWindowSafeArea.top' Locus-src/Locus/Features/Map/MapHomeView.swift
+          grep -Fq 'OpenStreetMap Vector 3D' Locus-src/Locus/Features/Settings/SettingsView.swift
+          ! grep -Fq 'embed: true' Locus-src/project.yml
           grep -Fq 'MXVectorOSMMapView(' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'MLNFillExtrusionStyleLayer' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           grep -Fq 'https://tiles.openfreemap.org/styles/liberty' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
@@ -176,27 +180,42 @@ jobs:
           WORK="$RUNNER_TEMP/mx-pro-output"
           mkdir -p "$WORK/Payload"
           cp -R "$APP" "$WORK/Payload/MXLocationPro.app"
+          # Native binary SPM products may be linked without being copied by
+          # XcodeGen. Embed the correct arm64 framework into the unsigned
+          # payload so SideStore can sign every dynamic library on install.
+          TARGET="$WORK/Payload/MXLocationPro.app/Frameworks/MapLibre.framework"
+          if [ ! -f "$TARGET/MapLibre" ]; then
+            FRAMEWORK=$(find Locus-src/build -type d -path '*/ios-arm64/MapLibre.framework' -print -quit || true)
+            if [ -z "$FRAMEWORK" ]; then
+              FRAMEWORK=$(find Locus-src/build -type d -name 'MapLibre.framework' -not -path '*simulator*' -print -quit || true)
+            fi
+            test -n "$FRAMEWORK"
+            mkdir -p "$(dirname "$TARGET")"
+            cp -R "$FRAMEWORK" "$TARGET"
+          fi
+          test -s "$TARGET/MapLibre"
+          echo "PASS: MapLibre vector 3D dynamic framework bundled for SideStore"
           python3 - "$WORK/Payload/MXLocationPro.app/Info.plist" <<'PY'
           import plistlib,sys
           p=sys.argv[1]
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.30.0'
-          d['CFBundleVersion']='300'
+          d['CFBundleShortVersionString']='4.31.0'
+          d['CFBundleVersion']='310'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
           find "$WORK/Payload/MXLocationPro.app" -type d -name _CodeSignature -prune -exec rm -rf {} +
           find "$WORK/Payload/MXLocationPro.app" -type f -name embedded.mobileprovision -delete
-          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.30.0-unsigned.ipa" Payload)
-          shasum -a 256 MX-Location-Pro-GPS-First-v4.30.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.30.0-unsigned.ipa.sha256
+          (cd "$WORK" && zip -qry "$GITHUB_WORKSPACE/MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa" Payload)
+          shasum -a 256 MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa > MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa.sha256
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: MX-Location-Pro-GPS-First-v4.30.0
+          name: MX-Location-Pro-GPS-First-v4.31.0
           path: |
-            MX-Location-Pro-GPS-First-v4.30.0-unsigned.ipa
-            MX-Location-Pro-GPS-First-v4.30.0-unsigned.ipa.sha256
+            MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa
+            MX-Location-Pro-GPS-First-v4.31.0-unsigned.ipa.sha256
             xcodebuild-mxpro.log
           if-no-files-found: ignore
