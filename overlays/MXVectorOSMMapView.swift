@@ -21,7 +21,7 @@ struct MXVectorOSMMapView: UIViewRepresentable {
                              styleURL: URL(string: "https://tiles.openfreemap.org/styles/liberty"))
         map.delegate = context.coordinator
         map.showsUserLocation = false
-        map.showsCompass = false
+        map.compassView.isHidden = true
         map.showsScale = false
         map.isPitchEnabled = true
         map.isRotateEnabled = true
