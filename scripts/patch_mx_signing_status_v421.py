@@ -12,7 +12,7 @@ reminder=root/"Locus/Support/MXExpiryReminder.swift"
 src=view.read_text(encoding="utf-8")
 assert 'Text("7-Day Activation")' in src
 assert 'Text("Renew Certificate")' in src
-assert 'Profile countdown only. Renewal status is verified in SideStore.' in src
+assert 'Embedded profile only. SideStore refresh may have a newer installed expiry.' in src
 assert 'private func openSideStore()' in src
 assert 'MXCertificateInfo.expirationDate()' in src
 old=reminder.read_text(encoding="utf-8")
