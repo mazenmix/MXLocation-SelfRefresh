@@ -36,28 +36,16 @@ struct MXVectorOSMMapView: UIViewRepresentable {
         tap.delegate = context.coordinator
         map.addGestureRecognizer(tap)
 
+        // Never auto-pitch, zoom or re-center when returning from another tab.
+        // The exact saved camera belongs to the user, not the map renderer.
         if let prior = cameraMemory.lastCamera ?? position.camera {
-            var target = prior
-            // Single migration for the former raster provider:
-            // reveal 3D when OSM first loads, without forcing pitch on
-            // each tab return or discarding the saved map center/zoom.
-            if !UserDefaults.standard.bool(forKey: "mx.osm.vector.introduced3D") {
-                target = MapCamera(centerCoordinate: prior.centerCoordinate,
-                                   distance: prior.distance,
-                                   heading: prior.heading,
-                                   pitch: 54)
-                UserDefaults.standard.set(true, forKey: "mx.osm.vector.introduced3D")
-                cameraMemory.observe(target)
-                cameraMemory.save()
-                DispatchQueue.main.async {
-                    self.position = .camera(target)
-                }
-            }
-            context.coordinator.apply(target, to: map)
+            context.coordinator.startCamera = prior
+            context.coordinator.apply(prior, to: map)
         } else if let chosen = simulated ?? pin {
-            let snapshot = MapCamera(centerCoordinate: chosen, distance: 5500,
-                                      heading: 0, pitch: 54)
-            context.coordinator.apply(snapshot, to: map)
+            let initial = MapCamera(centerCoordinate: chosen, distance: 5500,
+                                    heading: 0, pitch: 0)
+            context.coordinator.startCamera = initial
+            context.coordinator.apply(initial, to: map)
         }
         context.coordinator.updateMarkers(on: map, pin: pin, active: simulated)
         return map
@@ -87,7 +75,11 @@ struct MXVectorOSMMapView: UIViewRepresentable {
         var parent: MXVectorOSMMapView
         var isGesturing = false
         private var isApplying = false
+        private var hasLoadedStyle = false
+        private var programmaticTarget: MapCamera?
+        var startCamera: MapCamera?
         private var lastPublished: MapCamera?
+        private static let nativeViewportKey = "mx.osm.main.nativeViewport.v432"
         private var selectedAnnotation: MLNPointAnnotation?
         private var activeAnnotation: MLNPointAnnotation?
         private var lastPin: CLLocationCoordinate2D?
@@ -95,25 +87,13 @@ struct MXVectorOSMMapView: UIViewRepresentable {
         init(_ parent: MXVectorOSMMapView) { self.parent = parent }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-            // The Liberty style normally ships native fill-extruded buildings.
-            // Only inject our fallback when the public style lacks that layer.
-            if style.layer(withIdentifier: "building-3d") == nil,
-               let source = style.source(withIdentifier: "openmaptiles") {
-                let extrusions = MLNFillExtrusionStyleLayer(identifier: "mx-3d-buildings",
-                                                          source: source)
-                extrusions.sourceLayerIdentifier = "building"
-                extrusions.minimumZoomLevel = 14
-                extrusions.fillExtrusionHeight = NSExpression(forKeyPath: "render_height")
-                extrusions.fillExtrusionBase = NSExpression(forKeyPath: "render_min_height")
-                extrusions.fillExtrusionColor = NSExpression(forConstantValue:
-                    UIColor(red: 0.80, green: 0.84, blue: 0.83, alpha: 1))
-                extrusions.fillExtrusionOpacity = NSExpression(forConstantValue: 0.87)
-                if let label = style.layer(withIdentifier: "poi") {
-                    style.insertLayer(extrusions, below: label)
-                } else {
-                    style.addLayer(extrusions)
-                }
+            MXVectorOSMStyle.ensure3DBuildings(in: style)
+            // MapLibre may asynchronously reset the camera while it loads
+            // the vector style. Ignore those initial camera events completely.
+            if let original = startCamera {
+                apply(original, to: mapView)
             }
+            hasLoadedStyle = true
         }
 
         private func same(_ a: CLLocationCoordinate2D?, _ b: CLLocationCoordinate2D?) -> Bool {
@@ -156,8 +136,18 @@ struct MXVectorOSMMapView: UIViewRepresentable {
             if !isApplying { isGesturing = true }
         }
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
-            guard !isApplying else { return }
+            guard hasLoadedStyle, !isApplying else { return }
             isGesturing = false
+            if let requested = programmaticTarget {
+                // Do not publish synthetic viewport events triggered by app
+                // initialization, map-style refresh, or explicit camera sets.
+                if cameraDiffers(mapView.camera, from: requested) {
+                    apply(requested, to: mapView)
+                } else {
+                    programmaticTarget = nil
+                }
+                return
+            }
             let camera = mapView.camera
             let snapshot = MapCamera(centerCoordinate: camera.centerCoordinate,
                 distance: max(camera.altitude, 10),
@@ -165,8 +155,17 @@ struct MXVectorOSMMapView: UIViewRepresentable {
                 pitch: camera.pitch)
             if wasPublished(snapshot) { return }
             lastPublished = snapshot
+            startCamera = snapshot
             parent.cameraMemory.observe(snapshot)
             parent.cameraMemory.save()
+            UserDefaults.standard.set([
+                "latitude": camera.centerCoordinate.latitude,
+                "longitude": camera.centerCoordinate.longitude,
+                "altitude": camera.altitude,
+                "zoom": mapView.zoomLevel,
+                "pitch": camera.pitch,
+                "heading": camera.heading
+            ], forKey: Self.nativeViewportKey)
             parent.position = .camera(snapshot)
         }
 
@@ -187,11 +186,25 @@ struct MXVectorOSMMapView: UIViewRepresentable {
         }
         func apply(_ snapshot: MapCamera, to map: MLNMapView) {
             isApplying = true
+            programmaticTarget = snapshot
             let target = MLNMapCamera(lookingAtCenter: snapshot.centerCoordinate,
                                       altitude: max(10, snapshot.distance),
                                       pitch: max(0, min(70, snapshot.pitch)),
                                       heading: snapshot.heading)
             map.setCamera(target, animated: false)
+            if let native = UserDefaults.standard.dictionary(forKey: Self.nativeViewportKey),
+               let lat = native["latitude"] as? Double,
+               let lon = native["longitude"] as? Double,
+               let altitude = native["altitude"] as? Double,
+               let zoom = native["zoom"] as? Double,
+               abs(lat - snapshot.centerCoordinate.latitude) < 0.00003,
+               abs(lon - snapshot.centerCoordinate.longitude) < 0.00003,
+               abs(altitude - snapshot.distance) < max(30, snapshot.distance * 0.03),
+               zoom.isFinite, (2...19).contains(zoom) {
+                // Native MapLibre zoom is restored rather than approximated
+                // with MapKit distance, preventing cumulative zoom drift.
+                map.setZoomLevel(zoom, animated: false)
+            }
             isApplying = false
         }
 
@@ -205,6 +218,29 @@ struct MXVectorOSMMapView: UIViewRepresentable {
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             true
+        }
+    }
+}
+
+
+/// Shared 3D vector building style used by Map, Places, and previews.
+enum MXVectorOSMStyle {
+    static func ensure3DBuildings(in style: MLNStyle) {
+        guard style.layer(withIdentifier: "building-3d") == nil,
+              style.layer(withIdentifier: "mx-3d-buildings") == nil,
+              let source = style.source(withIdentifier: "openmaptiles") else { return }
+        let buildings = MLNFillExtrusionStyleLayer(identifier: "mx-3d-buildings", source: source)
+        buildings.sourceLayerIdentifier = "building"
+        buildings.minimumZoomLevel = 14
+        buildings.fillExtrusionHeight = NSExpression(forKeyPath: "render_height")
+        buildings.fillExtrusionBase = NSExpression(forKeyPath: "render_min_height")
+        buildings.fillExtrusionColor = NSExpression(forConstantValue:
+            UIColor(red: 0.80, green: 0.84, blue: 0.83, alpha: 1))
+        buildings.fillExtrusionOpacity = NSExpression(forConstantValue: 0.87)
+        if let poi = style.layer(withIdentifier: "poi") {
+            style.insertLayer(buildings, below: poi)
+        } else {
+            style.addLayer(buildings)
         }
     }
 }
