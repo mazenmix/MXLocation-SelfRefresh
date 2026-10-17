@@ -216,7 +216,7 @@ jobs:
           with open(p,'rb') as f: d=plistlib.load(f)
           assert d.get('CFBundleIdentifier')=='com.mazenmix.mxlocationpro',d.get('CFBundleIdentifier')
           assert d.get('CFBundleDisplayName')=='MX Location Pro'
-          d['CFBundleShortVersionString']='4.32.0'
+          d['CFBundleShortVersionString']='4.33.0'
           d['CFBundleVersion']='330'
           with open(p,'wb') as f: plistlib.dump(d,f)
           PY
