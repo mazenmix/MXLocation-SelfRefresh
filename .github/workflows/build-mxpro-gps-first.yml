@@ -109,6 +109,24 @@ jobs:
           ! grep -q 'openInMaps(' Locus-src/Locus/Features/Map/MXProDiscovery.swift
           cp MXLocationProV4/Assets/MXProIcon1024.png Locus-src/Locus/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           xcrun swiftc -frontend -parse MXLocationProV4/Sources/*.swift
+      - name: Build matching iDevice FFI library with installed-profile support
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init idevice-upstream
+          git -C idevice-upstream remote add origin https://github.com/jkcoxson/idevice.git
+          git -C idevice-upstream fetch --depth 1 origin 3854a5df4a5a6dee71ffce4d8befc2ea356a8065
+          git -C idevice-upstream checkout --detach FETCH_HEAD
+          rustup target add aarch64-apple-ios
+          export CARGO_PROFILE_RELEASE_LTO=false
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=8
+          cargo build --manifest-path idevice-upstream/Cargo.toml -p idevice-ffi --target aarch64-apple-ios --release
+          RUSTLIB=idevice-upstream/target/aarch64-apple-ios/release/libidevice_ffi.a
+          test -s "$RUSTLIB"
+          nm -gU "$RUSTLIB" | grep -q '_misagent_copy_all'
+          nm -gU "$RUSTLIB" | grep -q '_misagent_connect_rsd'
+          nm -gU "$RUSTLIB" | grep -q '_location_simulation_set'
+          cp "$RUSTLIB" Locus-src/Vendor/idevice/libidevice_ffi.a
       - name: Build iOS IPA on macOS
         shell: bash
         run: |
