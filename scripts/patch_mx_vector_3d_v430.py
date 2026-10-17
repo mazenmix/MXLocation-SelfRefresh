@@ -74,7 +74,6 @@ assert text.count(needle)==1
 text=text.replace(needle,'''    dependencies:
       - package: MapLibreSDK
         product: MapLibre
-        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER:''',1)
