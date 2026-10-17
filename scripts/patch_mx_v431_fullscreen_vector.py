@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""v4.31: real edge-to-edge camera while keeping interactive overlays in safe areas,
+correct MapLibre XCFramework binary packaging, and advertise real vector OSM 3D.
+"""
+from pathlib import Path
+import sys
+
+root=Path(sys.argv[1]).resolve()
+maps=root/"Locus/Features/Map"
+rootpath=maps/"RootView.swift"
+mappath=maps/"MapHomeView.swift"
+settingpath=root/"Locus/Features/Settings/SettingsView.swift"
+project=root/"project.yml"
+
+r=rootpath.read_text(encoding="utf-8")
+m=mappath.read_text(encoding="utf-8")
+s=settingpath.read_text(encoding="utf-8")
+p=project.read_text(encoding="utf-8")
+
+# The former .ignoresSafeArea applied to MapReader *inside* MapHomeView
+# could not escape RootView's safe-area-constrained geometry; let the map
+# screen itself occupy the entire device screen, preserving the tab chrome
+# as a separate safe-area-aware overlay.
+old="                MapHomeView(position: $retainedMapCamera, cameraMemory: mapCameraMemory)"
+new="""                MapHomeView(position: $retainedMapCamera, cameraMemory: mapCameraMemory)
+                    .ignoresSafeArea(.container, edges: [.top, .bottom])"""
+assert r.count(old)==1
+r=r.replace(old,new,1)
+rootpath.write_text(r,encoding="utf-8")
+
+# Root full bleed carries *all* child content past safe area. Restore padding
+# to the search and action controls only, leaving OSM/Apple map full screen.
+insert_anchor='    @AppStorage("mx.map.provider") private var mapProvider = "apple"'
+assert m.count(insert_anchor)==1
+safe_helper='''    private var mxWindowSafeArea: UIEdgeInsets {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first(where: { $0.activationState == .foregroundActive }),
+            let window = scene.windows.first(where: { $0.isKeyWindow })
+        else { return UIEdgeInsets(top: 58, left: 0, bottom: 34, right: 0) }
+        return window.safeAreaInsets
+    }
+
+'''
+m=m.replace(insert_anchor,safe_helper+insert_anchor,1)
+
+# v4.29 inserted a 74 pt gap between the map's bottom action tray and tab bar.
+# Add the bottom safe inset when full bleed, avoiding overlap with Home Indicator.
+old_top='''            .padding(.top, 10)
+            .padding(.bottom, 74)'''
+new_top='''            .padding(.top, 10 + mxWindowSafeArea.top)
+            .padding(.bottom, 74 + mxWindowSafeArea.bottom)'''
+assert m.count(old_top)==1,"Map overlay safe area may have changed"
+m=m.replace(old_top,new_top,1)
+assert "MXVectorOSMMapView(" in m
+assert "Map(position: $position)" in m
+assert "cameraMemory.lock($position)" in m
+mappath.write_text(m,encoding="utf-8")
+
+old_text='''Text("OpenStreetMap displays colorful 2D map tiles for smoother zooming.")'''
+new_text='''Text("OpenStreetMap Vector 3D · Smooth GPU rendering · Tilt the map with two fingers to see building heights where available.")'''
+assert s.count(old_text)==1
+s=s.replace(old_text,new_text,1)
+settingpath.write_text(s,encoding="utf-8")
+
+# The binary SPM product is handled by Xcode; explicit XcodeGen embed: true
+# generates an invalid extra CopyFiles entry for bare "MapLibre".
+old_dep='''      - package: MapLibreSDK
+        product: MapLibre
+        embed: true'''
+new_dep='''      - package: MapLibreSDK
+        product: MapLibre'''
+assert p.count(old_dep)==1
+p=p.replace(old_dep,new_dep,1)
+project.write_text(p,encoding="utf-8")
+
+assert ".ignoresSafeArea(.container, edges: [.top, .bottom])" in r
+assert "mxWindowSafeArea.top" in m
+assert "mxWindowSafeArea.bottom" in m
+assert "OpenStreetMap Vector 3D" in s
+assert "embed: true" not in p
+print("PASS v4.31: RootView full-bleed and safe controls, real MapLibre vector 3D settings, SPM framework copy fix")
