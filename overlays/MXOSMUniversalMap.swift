@@ -63,7 +63,9 @@ struct MXOSMUniversalMap: UIViewRepresentable {
         private var overlayFingerprint = ""
         private var graphics: [MLNAnnotation] = []
         private var lastPublished: MapCamera?
-        private var pendingProgrammaticCamera: MapCamera?
+        // Last accepted camera instruction / published user gesture.
+        // Do not compare to the continually changing map camera every frame.
+        private var lastAcceptedCamera: MapCamera?
         private var requestedAtStartup: MapCamera?
         init(_ parent: MXOSMUniversalMap) {
             self.parent = parent
@@ -72,7 +74,7 @@ struct MXOSMUniversalMap: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             MXVectorOSMStyle.ensure3DBuildings(in: style)
-            if let initial = requestedAtStartup {
+            if !hasLoadedStyle, let initial = requestedAtStartup {
                 setCamera(initial, map: mapView)
             }
             hasLoadedStyle = true
@@ -95,7 +97,6 @@ struct MXOSMUniversalMap: UIViewRepresentable {
 
         private func setCamera(_ camera: MapCamera, map: MLNMapView) {
             isApplying = true
-            pendingProgrammaticCamera = camera
             let target = MLNMapCamera(lookingAtCenter: camera.centerCoordinate,
                        altitude: max(camera.distance, 10),
                        pitch: max(0, min(70, camera.pitch)),
@@ -121,11 +122,13 @@ struct MXOSMUniversalMap: UIViewRepresentable {
             guard let intended else { return }
             if !hasLoadedStyle {
                 requestedAtStartup = intended
+                lastAcceptedCamera = intended
+                return
             }
-            // Own camera updates are already reflected in the binding.
-            // A row refresh, tab switch or new pins must not reset zoom.
-            if let last = lastPublished, nearlyEqual(last, intended) { return }
-            if nearlyEqual(mapCamera(map.camera), intended) { return }
+            // External navigation updates once. After a gesture, the binding
+            // is a mirror of the user's camera and MUST NOT reset zoom.
+            if let accepted = lastAcceptedCamera, nearlyEqual(accepted, intended) { return }
+            lastAcceptedCamera = intended
             setCamera(intended, map: map)
         }
 
@@ -197,15 +200,10 @@ struct MXOSMUniversalMap: UIViewRepresentable {
             guard hasLoadedStyle, !isApplying else { return }
             isUserGesture = false
             let snapshot = mapCamera(mapView.camera)
-            if let pending = pendingProgrammaticCamera {
-                if nearlyEqual(snapshot, pending) {
-                    pendingProgrammaticCamera = nil
-                } else {
-                    setCamera(pending, map: mapView)
-                }
-                return
-            }
-            if let previous = lastPublished, nearlyEqual(previous, snapshot) { return }
+            // User gestures are authoritative. A camera change NEVER triggers
+            // reapplication of an outdated initial/programmatic target.
+            lastAcceptedCamera = snapshot
+            if let prior = lastPublished, nearlyEqual(prior, snapshot) { return }
             lastPublished = snapshot
             parent.camera = .camera(snapshot)
             if let onRegionChange = parent.onRegionChange {
