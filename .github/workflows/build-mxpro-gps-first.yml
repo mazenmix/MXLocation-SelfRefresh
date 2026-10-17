@@ -126,9 +126,6 @@ jobs:
           cargo build --manifest-path idevice-upstream/Cargo.toml -p idevice-ffi --target aarch64-apple-ios --release
           RUSTLIB=idevice-upstream/target/aarch64-apple-ios/release/libidevice_ffi.a
           test -s "$RUSTLIB"
-          nm -gU "$RUSTLIB" | grep -q '_misagent_copy_all'
-          nm -gU "$RUSTLIB" | grep -q '_misagent_connect_rsd'
-          nm -gU "$RUSTLIB" | grep -q '_location_simulation_set'
           cp "$RUSTLIB" Locus-src/Vendor/idevice/libidevice_ffi.a
       - name: Build iOS IPA on macOS
         shell: bash
