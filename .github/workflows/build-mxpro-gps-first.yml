@@ -96,7 +96,7 @@ jobs:
           grep -Fq 'MXVectorOSMStyle.ensure3DBuildings(in: style)' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
           grep -Fq 'let map = MLNMapView(' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
           ! grep -Fq 'MKTileOverlay' Locus-src/Locus/Features/Map/MXOSMUniversalMap.swift
-          grep -Fq 'map.setCenter(region.center, animated: false)' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
+          grep -Fq 'map.setCenter(center, animated: false)' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           grep -Fq 'nativeViewport.v432' Locus-src/Locus/Features/Map/MXVectorOSMMapView.swift
           grep -Fq 'mxWindowSafeArea.top' Locus-src/Locus/Features/Map/MapHomeView.swift
           grep -Fq 'OpenStreetMap Vector 3D' Locus-src/Locus/Features/Settings/SettingsView.swift
